@@ -1,0 +1,264 @@
+/* ================= Catálogo ================= */
+body { overflow-x: hidden; }
+body::before { /* viñeta y textura sutil */
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--gold) 9%, transparent), transparent 70%),
+    radial-gradient(900px 500px at 100% 100%, color-mix(in srgb, var(--gold) 5%, transparent), transparent 70%);
+}
+.top {
+  position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 10px clamp(16px, 4vw, 48px); background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--line-soft);
+}
+.brand img { height: 52px; width: auto; mix-blend-mode: lighten; }
+.top nav { display: flex; gap: clamp(12px, 3vw, 32px); }
+.top nav a { color: var(--text); text-decoration: none; font-size: 12px; letter-spacing: .22em; text-transform: uppercase; opacity: .8; }
+.top nav a:hover { color: var(--gold); opacity: 1; }
+
+/* ---------- Hero ---------- */
+.hero {
+  display: grid; grid-template-columns: 1.1fr .9fr; align-items: center; gap: 32px;
+  max-width: 1240px; margin: 0 auto; padding: clamp(32px, 6vw, 80px) clamp(16px, 4vw, 48px) 24px;
+}
+.hero h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 6.4vw, 84px); line-height: 1.02; margin: 12px 0 16px; letter-spacing: -.01em; }
+.hero-text p.muted { font-size: 17px; max-width: 44ch; margin: 0 0 28px; }
+.hero-art { position: relative; aspect-ratio: 1; max-width: 460px; justify-self: center; width: 100%; }
+.hero-art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 49%; border-radius: 50%; mix-blend-mode: lighten;
+  filter: drop-shadow(0 30px 60px rgba(0,0,0,.6)); animation: floaty 7s ease-in-out infinite; }
+.hero-art::after { content: ''; position: absolute; inset: -12%; border-radius: 50%; z-index: -1;
+  background: radial-gradient(circle, color-mix(in srgb, var(--gold) 22%, transparent), transparent 62%); }
+@keyframes floaty { 50% { transform: translateY(-10px); } }
+
+/* ---------- Encabezados de sección ---------- */
+main { max-width: 1320px; margin: 0 auto; padding: 48px clamp(16px, 4vw, 48px) 80px; }
+.section-head { text-align: center; margin-bottom: 28px; }
+.section-head h2 { font-weight: 400; font-size: clamp(30px, 4vw, 46px); margin: 6px 0 12px; }
+.section-head .divider { max-width: 280px; margin: 0 auto; font-size: 10px; }
+
+/* ---------- Filtros ---------- */
+.filters { display: flex; flex-direction: column; gap: 14px; margin-bottom: 36px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.chip { padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line-soft); background: transparent; cursor: pointer;
+  font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); transition: all .2s; }
+.chip:hover { color: var(--text); border-color: var(--line); }
+.chip.on { color: #17130b; background: var(--gold); border-color: var(--gold); }
+.filter-row { display: grid; grid-template-columns: 1fr 200px 220px; gap: 10px; max-width: 860px; width: 100%; margin: 0 auto; }
+
+/* ================= VITRINA ================= */
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: clamp(20px, 3vw, 40px) clamp(16px, 2.4vw, 32px); }
+.light-warm { --spot: 255, 214, 150; }
+.light-cool { --spot: 190, 215, 255; }
+.light-white { --spot: 255, 255, 255; }
+
+.vitrina { position: relative; cursor: pointer; outline: none; animation: rise .6s both; animation-delay: calc(var(--i, 0) * 60ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } }
+
+/* Corona superior */
+.v-crown {
+  position: relative; height: 30px; margin: 0 -6px; border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #1c1813, #0d0c0a); border: 1px solid var(--line);
+  border-bottom: 2px solid var(--gold);
+  display: grid; place-items: center; font-size: 9px; letter-spacing: .34em; text-transform: uppercase; color: var(--gold);
+  box-shadow: 0 6px 16px rgba(0,0,0,.5);
+}
+.v-crown::before { /* lámpara */
+  content: ''; position: absolute; bottom: -4px; left: 50%; width: 46%; height: 3px; transform: translateX(-50%);
+  background: rgb(var(--spot)); border-radius: 3px; filter: blur(1px); opacity: .55; transition: opacity .5s, box-shadow .5s;
+  box-shadow: 0 0 10px rgba(var(--spot), .6);
+}
+
+/* Caja de cristal */
+.v-case {
+  position: relative; aspect-ratio: 3 / 4; perspective: 1100px; perspective-origin: 50% 40%;
+  background: #070707; border-left: 3px solid #1a1712; border-right: 3px solid #1a1712;
+}
+.v-interior {
+  position: absolute; inset: 0; overflow: hidden;
+  background:
+    radial-gradient(70% 55% at 50% 0%, rgba(var(--spot), .26), transparent 70%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.012) 0 2px, transparent 2px 5px),
+    linear-gradient(180deg, #17140f, #0a0908 70%);
+  transition: background .6s;
+}
+.v-interior::before { /* cono de luz */
+  content: ''; position: absolute; left: 50%; top: -10%; width: 90%; height: 95%; transform: translateX(-50%);
+  background: conic-gradient(from 180deg at 50% 0%, transparent 155deg, rgba(var(--spot), .10) 170deg, rgba(var(--spot), .16) 180deg, rgba(var(--spot), .10) 190deg, transparent 205deg);
+  opacity: .55; transition: opacity .6s;
+}
+.v-product {
+  position: absolute; left: 50%; bottom: 17%; width: 64%; height: 70%; transform: translateX(-50%);
+  display: grid; place-items: end center; transition: transform .8s cubic-bezier(.2,.8,.2,1), filter .6s;
+  filter: drop-shadow(0 14px 18px rgba(0,0,0,.65)) brightness(.86);
+}
+.v-product img, .v-product svg { max-width: 100%; max-height: 100%; object-fit: contain; }
+.v-shelf {
+  position: absolute; left: 6%; right: 6%; bottom: 13%; height: 9px; border-radius: 2px;
+  background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.04));
+  box-shadow: 0 1px 0 var(--gold), 0 10px 22px rgba(0,0,0,.6);
+}
+.v-shelf::after { /* charco de luz */
+  content: ''; position: absolute; left: 15%; right: 15%; top: -6px; height: 12px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(var(--spot), .35), transparent); opacity: .6; transition: opacity .6s;
+}
+.v-floor { position: absolute; left: 0; right: 0; bottom: 0; height: 13%; background: linear-gradient(180deg, #120f0b, #050505); border-top: 1px solid rgba(255,255,255,.04); }
+
+/* Puertas de cristal */
+.v-door {
+  position: absolute; top: 0; bottom: 0; width: 50%; z-index: 3;
+  transition: transform var(--door-ms, 900ms) cubic-bezier(.65,.05,.25,1), opacity .4s;
+  backface-visibility: visible; transform-style: preserve-3d;
+  border: 2px solid var(--gold);
+  border-image: linear-gradient(180deg, var(--gold-hi), var(--gold) 40%, var(--gold-lo)) 1;
+  background: linear-gradient(118deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.03) 26%, rgba(255,255,255,0) 40%, rgba(255,255,255,.06) 58%, rgba(255,255,255,0) 72%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), inset 0 0 30px rgba(255,255,255,.03);
+}
+.v-door.left { left: 0; transform-origin: left center; }
+.v-door.right { right: 0; transform-origin: right center; }
+.v-door .handle {
+  position: absolute; top: 46%; width: 4px; height: 13%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--gold-lo), var(--gold-hi), var(--gold-lo)); box-shadow: 0 2px 6px rgba(0,0,0,.6);
+}
+.v-door.left .handle { right: 8px; }
+.v-door.right .handle { left: 8px; }
+.v-lock { position: absolute; z-index: 4; left: 50%; top: 52%; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--gold-hi), var(--gold-lo)); box-shadow: 0 0 0 2px #0b0b0b; transition: opacity .3s; }
+
+/* Variante: una sola puerta */
+.doors-single .v-door.left { width: 100%; }
+.doors-single .v-door.right { display: none; }
+.doors-single .v-door.left .handle { right: 10px; }
+.doors-single .v-lock { left: auto; right: 6px; }
+
+/* Variante: campana que se eleva */
+.doors-lift .v-door.left { width: 100%; transform-origin: center top; }
+.doors-lift .v-door.right, .doors-lift .v-door .handle { display: none; }
+.doors-lift .v-lock { display: none; }
+
+/* Estado abierto */
+.vitrina.open .v-door.left { transform: rotateY(-112deg); }
+.vitrina.open .v-door.right { transform: rotateY(112deg); }
+.doors-lift .vitrina.open .v-door.left { transform: translateY(-104%); opacity: .25; }
+.vitrina.open { z-index: 2; }
+.vitrina.open .v-lock { opacity: 0; }
+[data-tone="light"] .brand img, [data-tone="light"] footer img, [data-tone="light"] .hero-art img { mix-blend-mode: darken; }
+.vitrina.open .v-product { transform: translateX(-50%) translateY(-6px) scale(1.06); filter: drop-shadow(0 22px 22px rgba(0,0,0,.7)) brightness(1.08); }
+.vitrina.open .v-interior::before { opacity: 1; }
+.vitrina.open .v-shelf::after { opacity: 1; }
+.vitrina.open .v-crown::before { opacity: 1; box-shadow: 0 0 22px rgba(var(--spot), 1), 0 0 4px #fff; }
+.vitrina:hover:not(.open) .v-door { box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), inset 0 0 40px rgba(var(--spot), .08); }
+.vitrina:hover .v-product { filter: drop-shadow(0 14px 18px rgba(0,0,0,.65)) brightness(.98); }
+.vitrina:focus-visible .v-case { outline: 2px solid var(--gold); outline-offset: 4px; }
+
+/* Destello que cruza el cristal */
+.v-door::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.18) 50%, transparent 60%);
+  background-size: 250% 100%; background-position: 150% 0; transition: background-position 1.1s ease;
+}
+.vitrina:hover .v-door::after { background-position: -50% 0; }
+
+/* Base / placa */
+.v-base {
+  position: relative; margin: 0 -6px; padding: 14px 12px 16px; text-align: center; border-radius: 2px 2px 8px 8px;
+  background: linear-gradient(180deg, #17140f, #0b0a08); border: 1px solid var(--line); border-top: 2px solid var(--gold);
+  box-shadow: 0 18px 30px rgba(0,0,0,.55);
+}
+.v-base h3 { font-family: var(--serif); font-weight: 500; font-size: 20px; margin: 0; line-height: 1.15; }
+.v-base .meta { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 4px 0 8px; }
+.price { font-size: 15px; color: var(--gold); letter-spacing: .04em; }
+.price s { color: var(--muted); font-size: .85em; margin-right: 6px; }
+.ribbon { position: absolute; z-index: 5; top: 42px; left: -8px; padding: 4px 10px; font-size: 10px; letter-spacing: .2em; text-transform: uppercase;
+  background: var(--gold); color: #17130b; font-weight: 600; box-shadow: 0 3px 8px rgba(0,0,0,.4); }
+.ribbon.out { background: #3a3530; color: var(--text); }
+.ribbon.offer { background: #b14b3c; color: #fff; }
+
+.empty { text-align: center; padding: 40px; }
+
+/* ---------- Detalle ---------- */
+.modal.detail { width: min(940px, 100%); display: grid; grid-template-columns: 1fr 1.1fr; gap: 28px; position: relative; padding: 28px; }
+.modal.detail .close { position: absolute; top: 14px; right: 14px; z-index: 2; }
+.d-media { position: relative; border-radius: 14px; overflow: hidden; min-height: 380px; display: grid; place-items: center; padding: 30px;
+  background: radial-gradient(70% 60% at 50% 10%, rgba(var(--spot), .28), transparent 70%), linear-gradient(180deg, #18150f, #080706); }
+.d-media img, .d-media svg { max-height: 420px; width: auto; max-width: 90%; filter: drop-shadow(0 20px 26px rgba(0,0,0,.7)); animation: rise .6s both; }
+.d-info h2 { font-size: clamp(30px, 4vw, 42px); line-height: 1.05; margin: 6px 0 4px; }
+.d-price { font-size: 26px; color: var(--gold); margin: 14px 0; font-family: var(--serif); }
+.d-price s { color: var(--muted); font-size: 18px; margin-right: 8px; }
+.pyramid { display: grid; gap: 8px; margin: 18px 0; }
+.pyramid div { display: grid; grid-template-columns: 96px 1fr; gap: 10px; padding: 10px 12px; border-left: 2px solid var(--gold); background: rgba(255,255,255,.025); border-radius: 0 8px 8px 0; }
+.pyramid b { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); font-weight: 500; padding-top: 2px; }
+.d-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+
+/* ---------- Club ---------- */
+.club { max-width: 1100px; margin: 0 auto 80px; padding: 48px clamp(16px, 4vw, 48px); display: grid; grid-template-columns: .9fr 1.1fr; gap: 48px; align-items: center;
+  border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+.club h2 { font-weight: 400; font-size: clamp(30px, 4vw, 44px); margin: 6px 0 10px; }
+.club-card { aspect-ratio: 1.586; border-radius: 18px; padding: 24px; display: flex; flex-direction: column; justify-content: space-between;
+  background: radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, var(--gold) 28%, #111), #0b0a08 60%); border: 1px solid var(--line);
+  box-shadow: 0 30px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08); transform: rotate(-4deg); transition: transform .5s; }
+.club-card:hover { transform: rotate(0) translateY(-4px); }
+.club-card img { width: 64px; border-radius: 50%; mix-blend-mode: lighten; }
+.club-card div { display: flex; flex-direction: column; gap: 2px; }
+.club-card strong { font-size: 26px; font-weight: 400; }
+.card-form { display: flex; gap: 10px; margin-top: 18px; }
+.card-result { margin-top: 16px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.02); }
+.card-result .pts { font-family: var(--serif); font-size: 34px; color: var(--gold); }
+
+/* ---------- Pie ---------- */
+footer { text-align: center; padding: 30px 16px 60px; }
+footer img { width: 200px; margin: 0 auto; mix-blend-mode: lighten; }
+.contact { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin: 6px 0 16px; }
+.small { font-size: 12px; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; text-align: center; }
+  .hero-text p.muted { margin-inline: auto; }
+  .hero-art { max-width: 280px; grid-row: 1; }
+  .filter-row { grid-template-columns: 1fr 1fr; }
+  .filter-row #q { grid-column: 1 / -1; }
+  .modal.detail { grid-template-columns: 1fr; padding: 18px; }
+  .d-media { min-height: 260px; }
+  .d-media img, .d-media svg { max-height: 260px; }
+  .club { grid-template-columns: 1fr; }
+  .club-card { max-width: 340px; margin: 0 auto; width: 100%; }
+}
+@media (max-width: 560px) {
+  .top nav a:not(#navClub) { display: none; }
+  .brand img { height: 40px; }
+  .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 14px; }
+  .v-base h3 { font-size: 16px; }
+  .v-base .meta { font-size: 9px; letter-spacing: .1em; }
+  .v-crown { font-size: 7px; letter-spacing: .22em; height: 24px; }
+  .card-form { flex-direction: column; }
+  .pyramid div { grid-template-columns: 1fr; gap: 2px; }
+}
+
+/* ---------- Vitrina con foto real ---------- */
+.v-product.photo { inset: 0; width: auto; height: auto; left: 0; bottom: 0; transform: none; display: block;
+  filter: brightness(.72) saturate(.9); transition: transform 1s cubic-bezier(.2,.8,.2,1), filter .7s; }
+.v-product.photo img { width: 100%; height: 100%; max-width: none; max-height: none; }
+.v-product.photo ~ .v-shelf, .v-interior:has(.photo) .v-shelf, .v-interior:has(.photo) .v-floor { display: none; }
+.v-interior:has(.photo)::before { z-index: 2; mix-blend-mode: screen; }
+.v-interior:has(.photo)::after { /* viñeta: integra la foto con el mueble */
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: radial-gradient(120% 85% at 50% 30%, transparent 45%, rgba(0,0,0,.55) 100%), linear-gradient(180deg, rgba(0,0,0,.25), transparent 25%, transparent 78%, rgba(0,0,0,.5));
+}
+.vitrina:hover .v-product.photo { filter: brightness(.82) saturate(.95); }
+.vitrina.open .v-product.photo { transform: scale(1.05); filter: brightness(1.02) saturate(1); }
+.v-product .pm-empty { padding: 22%; }
+
+.d-media.photo { padding: 0; }
+.d-media.photo .pm { max-height: 520px; height: 100%; width: 100%; filter: none; animation: rise .6s both; }
+.d-media .pm-cut { max-height: 420px; width: auto; max-width: 90%; filter: drop-shadow(0 20px 26px rgba(0,0,0,.7)); }
+.credit { position: absolute; left: 8px; bottom: 6px; right: 8px; font-size: 10px; color: rgba(255,255,255,.75); text-shadow: 0 1px 3px #000; text-align: left; }
+
+/* ---------- Tarjeta del club ---------- */
+.club-card { gap: 10px; }
+.club-card-top { display: flex; align-items: center; gap: 12px; }
+.club-card-top img { width: 48px; }
+.club-visual { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.club-visual svg { width: 100%; height: auto; }
+.club-balance { font-size: 40px; font-weight: 600; color: var(--gold); line-height: 1; letter-spacing: -.02em; }
+.card-result svg { max-width: 320px; width: 100%; height: auto; margin-top: 8px; }
+.card-result .pts { font-family: var(--sans); font-weight: 600; }

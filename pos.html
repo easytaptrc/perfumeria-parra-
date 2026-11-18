@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+  <title>Parra · Punto de venta</title>
+  <meta name="theme-color" content="#0b0b0b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="icon" href="/assets/logo-icon.jpg">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/pos.css">
+</head>
+<body>
+  <header class="pos-top">
+    <img src="/assets/logo-icon.jpg" alt="" class="pos-logo">
+    <div class="pos-title"><strong class="serif">Punto de venta</strong><span class="muted small" id="who"></span></div>
+    <div class="seg" id="mode"><button class="on" data-m="sell">Vender</button><button data-m="price">Consultar precio</button></div>
+    <a class="btn sm hidden" href="/admin" id="toAdmin">Admin</a>
+    <button class="btn sm" id="logout">Salir</button>
+  </header>
+
+  <main class="pos">
+    <section class="pos-left">
+      <div class="scan-box card">
+        <div id="cam" class="scan-view"></div>
+        <div class="cam-off" id="camOff">
+          <div class="cam-ic">⌁</div>
+          <p>Escanea el código de barras del perfume con la cámara</p>
+          <button class="btn primary" id="camStart">Encender cámara</button>
+          <p class="muted small" id="camErr"></p>
+        </div>
+        <div class="cam-ctrl hidden" id="camCtrl">
+          <button class="btn sm" id="torch">☀ Linterna</button>
+          <button class="btn sm" id="camStop">Apagar cámara</button>
+        </div>
+        <div class="flash hidden" id="flash"></div>
+      </div>
+
+      <form class="search card" id="searchForm" autocomplete="off">
+        <input class="input" id="code" placeholder="Código, o busca por nombre… (lector USB compatible)" inputmode="search">
+        <button class="btn">Agregar</button>
+        <div class="suggest hidden" id="suggest"></div>
+      </form>
+
+      <div class="quick" id="quick"></div>
+    </section>
+
+    <section class="pos-right card" id="cartPanel">
+      <button class="btn sm cart-close" id="cartClose" type="button">✕ Seguir escaneando</button>
+      <div class="cust" id="cust">
+        <button class="btn sm block" id="custBtn">♦ Agregar tarjeta de lealtad</button>
+      </div>
+      <div class="cart" id="cart"></div>
+      <div class="totals" id="totals"></div>
+      <div class="pay-row">
+        <button class="btn" id="clear">Vaciar</button>
+        <button class="btn primary" id="charge">Cobrar</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- barra inferior en celular -->
+  <div class="mobile-bar" id="mobileBar">
+    <button class="btn" id="mbCart">🛒 <span id="mbCount">0</span></button>
+    <strong class="num" id="mbTotal">$0.00</strong>
+    <button class="btn primary" id="mbCharge">Cobrar</button>
+  </div>
+
+  <script src="/vendor/html5-qrcode.min.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/scanner.js"></script>
+  <script src="/js/ticket.js"></script>
+  <script src="/js/stamps.js"></script>
+  <script src="/js/pos.js"></script>
+</body>
+</html>

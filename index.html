@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Parra Perfumería · Catálogo</title>
+  <meta name="theme-color" content="#0b0b0b">
+  <link rel="icon" href="/assets/logo-icon.jpg">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/catalog.css">
+</head>
+<body class="doors-double light-warm">
+  <header class="top">
+    <a href="#" class="brand" aria-label="Inicio"><img id="logo" src="/assets/logo-horizontal.jpg" alt="Parra Perfumería"></a>
+    <nav>
+      <a href="#coleccion">Colección</a>
+      <a href="#club" id="navClub">Club Parra</a>
+      <a href="#contacto">Contacto</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <div class="hero-text">
+      <p class="eyebrow" id="tagline">Alta perfumería</p>
+      <h1 id="heroTitle">El arte de dejar huella</h1>
+      <p class="muted" id="heroSubtitle">Descubre nuestra colección. Toca una vitrina para abrirla.</p>
+      <a class="btn primary" href="#coleccion">Ver colección</a>
+    </div>
+    <div class="hero-art"><img id="heroImg" src="/assets/logo-emblem.jpg" alt=""></div>
+  </section>
+
+  <main id="coleccion">
+    <div class="section-head">
+      <p class="eyebrow">La colección</p>
+      <h2 class="serif">Nuestras vitrinas</h2>
+      <div class="divider"><span>◆</span></div>
+    </div>
+
+    <div class="filters">
+      <div class="chips" id="chips"></div>
+      <div class="filter-row">
+        <input class="input" id="q" type="search" placeholder="Buscar perfume, marca o nota…" aria-label="Buscar">
+        <select class="input" id="brand" aria-label="Marca"></select>
+        <select class="input" id="sort" aria-label="Ordenar">
+          <option value="featured">Destacados</option>
+          <option value="price-asc">Precio: menor a mayor</option>
+          <option value="price-desc">Precio: mayor a menor</option>
+          <option value="name">Nombre A–Z</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="gallery" id="gallery"></div>
+    <p class="empty muted hidden" id="empty">No encontramos perfumes con esos filtros.</p>
+  </main>
+
+  <section class="club" id="club">
+    <div class="club-card" aria-hidden="true">
+      <div class="club-card-top"><img src="/assets/logo-icon.jpg" alt=""><span class="eyebrow club-name">Club Parra</span></div>
+      <div class="club-visual" id="clubVisual"></div>
+      <span class="num muted small">PP ••• •••</span>
+    </div>
+    <div class="club-text">
+      <p class="eyebrow club-name">Club Parra</p>
+      <h2 class="serif" id="clubTitle">Cada compra suma</h2>
+      <p class="muted" id="clubText"></p>
+      <p class="muted small">Consulta tu saldo con tu número de tarjeta y los últimos 4 dígitos de tu teléfono.</p>
+      <form id="cardForm" class="card-form">
+        <input class="input" id="cardInput" placeholder="Tarjeta (ej. PP100001)" autocomplete="off" required>
+        <input class="input" id="phone4" placeholder="Últimos 4 del teléfono" inputmode="numeric" maxlength="4" pattern="\d{4}" autocomplete="off" required style="max-width:200px">
+        <button class="btn primary">Consultar</button>
+      </form>
+      <div id="cardResult" class="card-result hidden"></div>
+    </div>
+  </section>
+
+  <footer id="contacto">
+    <img id="footLogo" src="/assets/logo-vertical.jpg" alt="Parra Perfumería">
+    <div class="contact" id="contact"></div>
+    <p class="muted small" id="footer">© Parra Perfumería</p>
+  </footer>
+
+  <!-- Detalle -->
+  <div class="modal-back" id="detail" role="dialog" aria-modal="true" aria-labelledby="dName">
+    <div class="modal detail">
+      <button class="btn icon close" id="dClose" aria-label="Cerrar">✕</button>
+      <div class="d-media" id="dMedia"></div>
+      <div class="d-info">
+        <p class="eyebrow" id="dBrand"></p>
+        <h2 id="dName"></h2>
+        <p class="muted" id="dMeta"></p>
+        <div class="d-price" id="dPrice"></div>
+        <p id="dDesc"></p>
+        <div class="pyramid" id="dNotes"></div>
+        <div class="d-actions" id="dActions"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/stamps.js"></script>
+  <script src="/js/catalog.js"></script>
+</body>
+</html>

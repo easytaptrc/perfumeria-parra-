@@ -1,0 +1,51 @@
+/* ============ Tarjeta de lealtad (colores configurables) + vistas previas de Wallet ============ */
+.lcard { --lc-bg: #0b0a08; --lc-text: #efe8da; --lc-accent: #c9a75e;
+  position: relative; border-radius: 22px; padding: 20px; overflow: hidden; color: var(--lc-text); isolation: isolate;
+  background: radial-gradient(130% 120% at 100% 0%, color-mix(in srgb, var(--lc-accent) 34%, var(--lc-bg)), var(--lc-bg) 62%);
+  border: 1px solid color-mix(in srgb, var(--lc-accent) 45%, transparent);
+  box-shadow: 0 14px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.1); font-family: var(--sans, Montserrat, sans-serif); }
+.lcard.has-img { background: var(--lc-img) center / cover no-repeat, var(--lc-bg); }
+.lcard.has-img::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(160deg, color-mix(in srgb, var(--lc-bg) 50%, transparent), color-mix(in srgb, var(--lc-bg) 82%, transparent)); }
+.lcard::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.08) 45%, transparent 55%); }
+.lcard .lc-top { display: flex; align-items: center; gap: 12px; }
+.lcard .lc-top img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
+.lcard .lc-top .prog { flex: 1; line-height: 1.2; }
+.lcard .lc-top .prog .eyebrow { color: var(--lc-accent); font-size: 10px; letter-spacing: .24em; text-transform: uppercase; }
+.lcard .lc-top .prog b { display: block; font-family: var(--serif, 'Bodoni Moda', serif); font-weight: 500; font-size: 20px; }
+.lcard .lc-top .tier { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--lc-accent); color: var(--lc-accent); }
+.lcard .lc-balance { margin: 22px 0 6px; }
+.lcard .lc-balance .lbl { font-size: 10px; letter-spacing: .24em; text-transform: uppercase; color: var(--lc-accent); }
+.lcard .lc-balance .amt { font-size: 44px; font-weight: 600; line-height: 1.05; letter-spacing: -.02em; }
+.lcard .lc-stamps { margin: 16px -6px 4px; }
+.lcard .lc-stamps svg { width: 100%; height: auto; display: block; }
+.lcard .lc-next { font-size: 13px; opacity: .85; margin-top: 4px; }
+.lcard .lc-next b { color: var(--lc-accent); font-weight: 600; }
+.lcard .lc-name { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 16px; font-size: 13px; }
+.lcard .lc-name span:first-child { font-family: var(--serif, 'Bodoni Moda', serif); font-size: 17px; }
+
+/* Vistas previas de Apple / Google Wallet */
+.wmock { --lc-bg: #0b0a08; --lc-text: #efe8da; --lc-accent: #c9a75e; position: relative; color: var(--lc-text); background: var(--lc-bg); border-radius: 14px; overflow: hidden;
+  font-family: -apple-system, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif; box-shadow: 0 10px 24px rgba(0,0,0,.35); display: flex; flex-direction: column; }
+.wmock small { display: block; font-size: 9px; letter-spacing: .08em; font-weight: 600; }
+.wmock b { font-weight: 500; font-size: 14px; }
+.wmock .wm-label { position: absolute; top: -22px; left: 0; font-size: 11px; color: var(--muted, #999); font-family: var(--sans, sans-serif); }
+.am-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; }
+.am-head img { height: 22px; max-width: 110px; object-fit: contain; }
+.am-hf { text-align: right; }
+.am-strip { aspect-ratio: 375 / 123; display: flex; align-items: center; justify-content: center; position: relative;
+  background: radial-gradient(120% 140% at 85% 10%, color-mix(in srgb, var(--lc-accent) 40%, var(--lc-bg)), var(--lc-bg) 60%); }
+.am-strip.img { background: linear-gradient(color-mix(in srgb, var(--lc-bg) 45%, transparent), color-mix(in srgb, var(--lc-bg) 45%, transparent)), var(--lc-img) center / cover; }
+.am-strip svg { width: 100%; height: 100%; }
+.am-bal { position: absolute; left: 12px; bottom: 10px; } .am-bal b { font-size: 26px; font-weight: 400; }
+.am-fields { display: flex; justify-content: space-between; padding: 10px 12px; gap: 10px; }
+.am-fields > div:last-child { text-align: right; }
+.am-code, .gm-code { background: #fff; color: #111; margin: 6px auto 14px; padding: 8px 8px 4px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; }
+.am-code svg, .gm-code svg { width: 110px; height: auto; max-height: 110px; } .am-code small, .gm-code small { font-size: 9px; color: #333; letter-spacing: .1em; }
+.gm-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px; font-size: 13px; }
+.gm-head img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.gm-prog { padding: 4px 14px 8px; font-size: 20px; font-family: 'Google Sans', Roboto, sans-serif; }
+.gm-fields { display: flex; justify-content: space-between; padding: 0 14px 6px; } .gm-fields small { font-weight: 400; opacity: .8; letter-spacing: 0; font-size: 11px; } .gm-fields b { font-size: 16px; }
+.gm-hero { aspect-ratio: 375 / 123; background: radial-gradient(120% 140% at 85% 10%, color-mix(in srgb, var(--lc-accent) 40%, var(--lc-bg)), var(--lc-bg) 60%); }
+.gm-hero.img { background: linear-gradient(color-mix(in srgb, var(--lc-bg) 45%, transparent), color-mix(in srgb, var(--lc-bg) 45%, transparent)), var(--lc-img) center / cover; }
+.gm-hero svg { width: 100%; height: 100%; display: block; }
+.am-head img { mix-blend-mode: lighten; }

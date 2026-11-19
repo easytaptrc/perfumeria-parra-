@@ -2,12 +2,25 @@
   const { esc, applyTheme, toast, isCutout } = ui;
   const $ = s => document.querySelector(s);
   let S = {}, products = [], lastJson = '';
-  const state = { cat: 'Todos', brand: '', q: '', sort: 'featured' };
+  const state = { cat: 'Todos', brand: '', q: '', sort: 'featured', avail: false, shown: 24 };
+  const PAGE = 24;
   let openCard = null, openTimer = null;
+
+  // Con el servidor de la tienda se leen los datos en vivo; publicado en GitHub Pages se usa catalogo.json
+  let isStatic = false;
+  async function loadCatalog() {
+    if (!isStatic) {
+      try { const r = await fetch('api/public/catalog', { cache: 'no-store' }); if (r.ok) return await r.json(); } catch {}
+    }
+    isStatic = true;
+    const r = await fetch('catalogo.json', { cache: 'no-store' });
+    if (!r.ok) throw new Error('Sin catálogo');
+    return r.json();
+  }
 
   async function load(silent) {
     try {
-      const r = await fetch('/api/public/catalog').then(r => r.json());
+      const r = await loadCatalog();
       const json = JSON.stringify(r);
       if (json === lastJson) return;
       lastJson = json;
@@ -48,9 +61,12 @@
   const priceOf = p => (p.offerPrice > 0 ? p.offerPrice : p.price);
   function priceHtml(p) {
     if (!S.showPrices) return '';
+    if (!(priceOf(p) > 0)) return '<span class="ask">Precio a consultar</span>';
     return p.offerPrice > 0 ? `<s>${fmt.money(p.price)}</s>${fmt.money(p.offerPrice)}` : fmt.money(p.price);
   }
-  const media = (p, o) => ui.media(p, o);
+  // Sin foto: una placa grabada con la marca y el nombre (en lugar de repetir el logo)
+  const plate = p => `<div class="plate"><img src="${esc(S.logoIcon || 'assets/logo-icon.jpg')}" alt=""><span class="pl-brand">${esc(p.brand || S.storeName || '')}</span><span class="pl-name">${esc(p.name)}</span><i></i></div>`;
+  const media = (p, o) => (p.image ? ui.media(p, o) : plate(p));
   const isPhoto = p => p.image && !isCutout(p.image);
 
   function filtered() {
@@ -58,6 +74,7 @@
     let list = products.filter(p => {
       if (state.cat !== 'Todos' && p.category !== state.cat) return false;
       if (state.brand && p.brand !== state.brand) return false;
+      if (state.avail && !p.available) return false;
       if (q) {
         const hay = [p.name, p.brand, p.family, p.category, p.notes?.top, p.notes?.heart, p.notes?.base].join(' ').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         if (!hay.includes(q)) return false;
@@ -66,18 +83,23 @@
     });
     const by = {
       featured: (a, b) => (b.featured - a.featured) || (b.available - a.available) || a.name.localeCompare(b.name),
-      'price-asc': (a, b) => priceOf(a) - priceOf(b),
-      'price-desc': (a, b) => priceOf(b) - priceOf(a),
+      // Sin precio al final al ordenar por precio
+      'price-asc': (a, b) => (!(priceOf(a) > 0) - !(priceOf(b) > 0)) || priceOf(a) - priceOf(b),
+      'price-desc': (a, b) => (!(priceOf(a) > 0) - !(priceOf(b) > 0)) || priceOf(b) - priceOf(a),
       name: (a, b) => a.name.localeCompare(b.name),
     };
     return list.sort(by[state.sort]);
   }
 
   function render() {
-    const list = filtered();
-    $('#empty').classList.toggle('hidden', list.length > 0);
+    const all = filtered();
+    const list = all.slice(0, state.shown);
+    $('#empty').classList.toggle('hidden', all.length > 0);
+    $('#count').textContent = all.length ? `${all.length} perfume${all.length === 1 ? '' : 's'}${state.avail ? ' disponibles' : ''}` : '';
+    $('#more').classList.toggle('hidden', all.length <= state.shown);
+    $('#more').textContent = `Ver más perfumes (${all.length - list.length})`;
     $('#gallery').innerHTML = list.map((p, i) => `
-      <article class="vitrina" tabindex="0" role="button" aria-label="Abrir vitrina de ${esc(p.name)}" data-id="${p.id}" style="--i:${i}">
+      <article class="vitrina" tabindex="0" role="button" aria-label="Abrir vitrina de ${esc(p.name)}" data-id="${p.id}" style="--i:${i % PAGE}">
         ${!p.available ? '<span class="ribbon out">Agotado</span>' : p.offerPrice > 0 ? '<span class="ribbon offer">Oferta</span>' : p.featured ? '<span class="ribbon">Destacado</span>' : ''}
         <div class="v-crown">${esc(p.brand || S.storeName)}</div>
         <div class="v-case">
@@ -138,10 +160,13 @@
   $('#dClose').addEventListener('click', close);
   $('#detail').addEventListener('click', e => { if (e.target.id === 'detail') close(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-  $('#chips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; state.cat = b.dataset.cat; buildFilters(); render(); });
-  $('#brand').addEventListener('change', e => { state.brand = e.target.value; render(); });
-  $('#sort').addEventListener('change', e => { state.sort = e.target.value; render(); });
-  let qt; $('#q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { state.q = e.target.value.trim(); render(); }, 150); });
+  const reset = () => { state.shown = PAGE; render(); };
+  $('#chips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; state.cat = b.dataset.cat; buildFilters(); reset(); });
+  $('#brand').addEventListener('change', e => { state.brand = e.target.value; reset(); });
+  $('#sort').addEventListener('change', e => { state.sort = e.target.value; reset(); });
+  $('#avail').addEventListener('change', e => { state.avail = e.target.checked; reset(); });
+  $('#more').addEventListener('click', () => { state.shown += PAGE; render(); });
+  let qt; $('#q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { state.q = e.target.value.trim(); reset(); }, 150); });
 
   // ----- Club de lealtad -----
   function renderClub() {
@@ -152,12 +177,17 @@
     $('#navClub').textContent = lo.programName || 'Club';
     $$('.club-name').forEach(el => { el.textContent = lo.programName || 'Club Parra'; });
     const earn = { item: 'por cada perfume que compras', purchase: 'en cada compra', amount: `por cada ${fmt.money(lo.amount)} de compra` }[lo.earnBy] || '';
+    const walletTxt = lo.appleWallet && lo.googleWallet ? ' y se guarda en Apple Wallet o Google Wallet' : lo.appleWallet ? ' y se guarda en Apple Wallet' : lo.googleWallet ? ' y se guarda en Google Wallet' : '';
+    // Publicado sin servidor (GitHub Pages) no se puede consultar saldo ni registrarse en línea
+    $('#clubJoin').classList.toggle('hidden', !lo.signup || isStatic);
+    $('#cardForm').classList.toggle('hidden', isStatic);
+    $('#cardHelp').textContent = isStatic ? 'Pide tu tarjeta en la tienda; ahí te registramos y la recibes en tu celular.' : 'Consulta tu saldo con tu número de tarjeta y los últimos 4 dígitos de tu teléfono.';
     $('#clubTitle').textContent = lo.mode === 'stamps' ? 'Junta sellos, gana perfumes' : `${lo.percent}% de regreso en cada compra`;
     $('#clubText').textContent = lo.mode === 'stamps'
-      ? `Recibe un sello ${earn}. Al completar ${lo.goal} sellos te llevas: ${lo.rewardText}. Tu tarjeta vive en tu celular${lo.appleWallet ? ' y se guarda en Apple Wallet' : ''}.`
-      : `Cada compra te regresa ${lo.percent}% como saldo en tu monedero para tu siguiente fragancia. Tu tarjeta vive en tu celular${lo.appleWallet ? ' y se guarda en Apple Wallet' : ''}.`;
+      ? `Recibe un sello ${earn}. Al completar ${lo.goal} sellos te llevas: ${lo.rewardText}. Tu tarjeta vive en tu celular${walletTxt}.`
+      : `Cada compra te regresa ${lo.percent}% como saldo en tu monedero para tu siguiente fragancia. Tu tarjeta vive en tu celular${walletTxt}.`;
     $('#clubVisual').innerHTML = lo.mode === 'stamps'
-      ? Stamps.grid(Math.ceil(lo.goal * 0.6), lo.goal, lo.icon, { gold: S.colors?.gold, bg: '#0b0a08', width: 300, height: lo.goal > 6 ? 110 : 60, transparent: true })
+      ? Stamps.grid(Math.ceil(lo.goal * 0.6), lo.goal, lo.stampIcon || lo.icon, { gold: lo.card?.accent || S.colors?.gold, bg: lo.card?.bg || '#0b0a08', width: 300, height: lo.goal > 6 ? 110 : 60, transparent: true })
       : `<span class="club-balance num">${fmt.money(1250)}</span><span class="muted small">Saldo de ejemplo</span>`;
   }
   const $$ = s => [...document.querySelectorAll(s)];
@@ -167,12 +197,12 @@
     const box = $('#cardResult');
     box.classList.remove('hidden');
     try {
-      const r = await fetch('/api/public/card', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardNumber: $('#cardInput').value, phone4: $('#phone4').value }) });
+      const r = await fetch('api/public/card', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cardNumber: $('#cardInput').value, phone4: $('#phone4').value }) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       const lo = d.loyalty;
       box.innerHTML = `<div class="muted">Hola, ${esc(d.name)} · Nivel <b class="gold">${esc(d.tier)}</b></div>` + (lo.mode === 'stamps'
-        ? `<div class="pts num">${d.stamps} de ${lo.goal} sellos</div>${Stamps.grid(Math.min(d.stamps, lo.goal), lo.goal, lo.icon, { gold: S.colors?.gold, bg: '#0b0a08', width: 300, height: lo.goal > 6 ? 100 : 56, transparent: true })}`
+        ? `<div class="pts num">${d.stamps} de ${lo.goal} sellos</div>${Stamps.grid(Math.min(d.stamps, lo.goal), lo.goal, lo.stampIcon || lo.icon, { gold: S.colors?.gold, bg: '#0b0a08', width: 300, height: lo.goal > 6 ? 100 : 56, transparent: true })}`
         : `<div class="pts num">${fmt.money(d.cashback)}</div><div class="muted small">Saldo disponible en tu monedero</div>`);
     } catch (err) { box.innerHTML = `<span class="muted">${esc(err.message || 'Tarjeta no encontrada')}</span>`; }
   });

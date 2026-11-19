@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Parra Perfumería · Catálogo</title>
   <meta name="theme-color" content="#0b0b0b">
-  <link rel="icon" href="/assets/logo-icon.jpg">
-  <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/catalog.css">
+  <link rel="icon" href="assets/logo-icon.jpg">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/catalog.css">
 </head>
 <body class="doors-double light-warm">
   <header class="top">
-    <a href="#" class="brand" aria-label="Inicio"><img id="logo" src="/assets/logo-horizontal.jpg" alt="Parra Perfumería"></a>
+    <a href="#" class="brand" aria-label="Inicio"><img id="logo" src="assets/logo-horizontal.jpg" alt="Parra Perfumería"></a>
     <nav>
       <a href="#coleccion">Colección</a>
       <a href="#club" id="navClub">Club Parra</a>
@@ -26,7 +26,7 @@
       <p class="muted" id="heroSubtitle">Descubre nuestra colección. Toca una vitrina para abrirla.</p>
       <a class="btn primary" href="#coleccion">Ver colección</a>
     </div>
-    <div class="hero-art"><img id="heroImg" src="/assets/logo-emblem.jpg" alt=""></div>
+    <div class="hero-art"><img id="heroImg" src="assets/logo-emblem.jpg" alt=""></div>
   </section>
 
   <main id="coleccion">
@@ -47,16 +47,19 @@
           <option value="price-desc">Precio: mayor a menor</option>
           <option value="name">Nombre A–Z</option>
         </select>
+        <label class="avail-toggle"><input type="checkbox" id="avail"> Solo disponibles</label>
       </div>
     </div>
 
+    <p class="muted small count" id="count"></p>
     <div class="gallery" id="gallery"></div>
     <p class="empty muted hidden" id="empty">No encontramos perfumes con esos filtros.</p>
+    <div class="more-wrap"><button class="btn hidden" id="more">Ver más perfumes</button></div>
   </main>
 
   <section class="club" id="club">
     <div class="club-card" aria-hidden="true">
-      <div class="club-card-top"><img src="/assets/logo-icon.jpg" alt=""><span class="eyebrow club-name">Club Parra</span></div>
+      <div class="club-card-top"><img src="assets/logo-icon.jpg" alt=""><span class="eyebrow club-name">Club Parra</span></div>
       <div class="club-visual" id="clubVisual"></div>
       <span class="num muted small">PP ••• •••</span>
     </div>
@@ -64,7 +67,8 @@
       <p class="eyebrow club-name">Club Parra</p>
       <h2 class="serif" id="clubTitle">Cada compra suma</h2>
       <p class="muted" id="clubText"></p>
-      <p class="muted small">Consulta tu saldo con tu número de tarjeta y los últimos 4 dígitos de tu teléfono.</p>
+      <a class="btn primary hidden" id="clubJoin" href="club.html" style="align-self:flex-start">Obtener mi tarjeta gratis</a>
+      <p class="muted small" id="cardHelp">Consulta tu saldo con tu número de tarjeta y los últimos 4 dígitos de tu teléfono.</p>
       <form id="cardForm" class="card-form">
         <input class="input" id="cardInput" placeholder="Tarjeta (ej. PP100001)" autocomplete="off" required>
         <input class="input" id="phone4" placeholder="Últimos 4 del teléfono" inputmode="numeric" maxlength="4" pattern="\d{4}" autocomplete="off" required style="max-width:200px">
@@ -75,7 +79,7 @@
   </section>
 
   <footer id="contacto">
-    <img id="footLogo" src="/assets/logo-vertical.jpg" alt="Parra Perfumería">
+    <img id="footLogo" src="assets/logo-vertical.jpg" alt="Parra Perfumería">
     <div class="contact" id="contact"></div>
     <p class="muted small" id="footer">© Parra Perfumería</p>
   </footer>
@@ -97,8 +101,8 @@
     </div>
   </div>
 
-  <script src="/js/api.js"></script>
-  <script src="/js/stamps.js"></script>
-  <script src="/js/catalog.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/stamps.js"></script>
+  <script src="js/catalog.js"></script>
 </body>
 </html>

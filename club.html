@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Únete al club · Parra Perfumería</title>
+  <meta name="theme-color" content="#0b0b0b">
+  <link rel="icon" href="assets/logo-icon.jpg">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/card.css">
+  <link rel="stylesheet" href="css/tarjeta.css">
+</head>
+<body>
+  <main class="wrap" id="app">
+    <div class="store"><img id="logo" src="assets/logo-horizontal.jpg" alt="Parra Perfumería"></div>
+    <section id="preview"></section>
+    <section class="club-join">
+      <h1 class="serif" id="title">Únete al club</h1>
+      <p class="muted" id="pitch"></p>
+      <form id="f" class="form-grid" autocomplete="on">
+        <label class="field full"><span>Nombre completo *</span><input class="input" name="name" autocomplete="name" required minlength="3" maxlength="80"></label>
+        <label class="field full"><span>Teléfono (WhatsApp) *</span><input class="input" name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="10 dígitos"></label>
+        <label class="field"><span>Correo (opcional)</span><input class="input" name="email" type="email" autocomplete="email"></label>
+        <label class="field"><span>Cumpleaños (opcional)</span><input class="input" name="birthday" type="date"></label>
+        <p class="muted small full" style="margin:0">Usamos tus datos solo para tu tarjeta de cliente y avisos de la tienda.</p>
+        <p class="err full hidden" id="err"></p>
+        <button class="btn primary block full" id="go">Obtener mi tarjeta</button>
+      </form>
+      <p class="muted small" style="text-align:center">¿Ya tienes tarjeta? <a href="./#club">Consulta tu saldo</a></p>
+    </section>
+  </main>
+  <script src="vendor/qrcode.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/stamps.js"></script>
+  <script src="js/card.js"></script>
+  <script src="js/club.js"></script>
+</body>
+</html>

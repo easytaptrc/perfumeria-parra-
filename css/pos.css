@@ -119,3 +119,8 @@ body { min-height: 100dvh; }
 .q-item .thumb, .line .thumb, .suggest .thumb, .flash .thumb { padding: 0; }
 .cart-close { display: none; align-self: flex-start; }
 @media (max-width: 900px) { .cart-close { display: inline-flex; } }
+
+/* Dentro del admin (iframe) */
+body.embed .pos-logo, body.embed #logout, body.embed #toAdmin { display: none; }
+body.embed .pos-top { padding: 8px 12px; }
+body.embed .pos { padding: 12px; }

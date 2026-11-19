@@ -4,14 +4,17 @@
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const CART_KEY = 'parra_pos_cart';
 
-  let S = null, products = [], customers = null;
+  let S = null, products = [], customers = null, cash = null;
   let mode = 'sell';
+  const embed = new URLSearchParams(location.search).has('embed');
+  if (embed) document.body.classList.add('embed');
   const st = { cart: [], customer: null, discount: 0, cashUse: 0, redeem: false };
   const scanner = new Scanner('cam');
   const isTouch = matchMedia('(pointer: coarse)').matches;
 
   // ---------- Utilidades ----------
   const priceOf = p => (p.offerPrice > 0 ? p.offerPrice : p.price);
+  const priceTxt = p => (priceOf(p) > 0 ? fmt.money(priceOf(p)) : 'Sin precio');
   const thumb = p => `<div class="thumb">${ui.media(p)}</div>`;
   const findByCode = c => products.find(p => p.barcode === c || (p.sku && p.sku === c));
 
@@ -40,6 +43,7 @@
 
   // ---------- Arranque ----------
   async function boot() {
+    if (!(await api.online())) return ui.offlineNotice('Punto de venta');
     if (!api.token) { location.href = '/admin?next=/pos'; return; }
     let me;
     try { me = await api.me(); } catch { location.href = '/admin?next=/pos'; return; }
@@ -49,13 +53,37 @@
     applyTheme(S);
     if (S.logoIcon) $('.pos-logo').src = S.logoIcon;
     $('#who').textContent = api.user.name;
-    const other = ['dashboard', 'products', 'inventory', 'loyalty', 'sales', 'appearance', 'users', 'settings'].some(s => api.can(s));
-    $('#toAdmin').classList.toggle('hidden', !other);
+    const other = ['dashboard', 'cash', 'products', 'inventory', 'reports', 'loyalty', 'sales', 'appearance', 'users', 'settings'].some(s => api.can(s));
+    $('#toAdmin').classList.toggle('hidden', !other || embed);
     await loadProducts();
     restoreCart();
     render();
+    await loadCash();
     if (!isTouch) $('#code').focus();
   }
+
+  // ---------- Caja ----------
+  async function loadCash(prompt = true) {
+    try { cash = await api.get('/cash'); } catch { cash = null; }
+    const open = cash?.current;
+    $('#cashBtn').innerHTML = open ? `▣ Caja #${open.number}` : '▣ Caja cerrada';
+    $('#cashBtn').classList.toggle('warn', !open);
+    if (prompt && cash && !open && cash.requireCash) CashUI.openForm(modal, () => loadCash(false));
+  }
+  $('#cashBtn').onclick = async () => {
+    await loadCash(false);
+    const cs = cash?.current;
+    if (!cs) return CashUI.openForm(modal, () => loadCash(false));
+    modal({
+      title: `Caja #${cs.number} · abierta`,
+      body: `<p class="muted small" style="margin-top:0">Abrió ${esc(cs.openedBy)} · ${fmt.date(cs.openedAt)}</p>${CashUI.summaryRows(cs)}${CashUI.movementsHtml(cs)}`,
+      actions: [
+        { label: '+ Entrada', onClick: () => { CashUI.moveForm(modal, 'in', () => loadCash(false)); } },
+        { label: '− Salida', onClick: () => { CashUI.moveForm(modal, 'out', () => loadCash(false)); } },
+        { label: 'Corte y cerrar', cls: 'primary', onClick: () => { CashUI.closeForm(modal, cs, S, () => loadCash(false)); } },
+      ],
+    });
+  };
   async function loadProducts() { products = await api.get('/products'); renderQuick(); }
   window.addEventListener('parra:logout', () => { location.href = '/admin?next=/pos'; });
   $('#logout').onclick = async () => { await scanner.stop(); await api.logout(); location.href = '/admin?next=/pos'; };
@@ -99,7 +127,7 @@
     if (!p) { try { p = await api.get('/products/barcode/' + encodeURIComponent(code)); products.push(p); } catch {} }
     if (p) {
       beep(true);
-      flash(`${thumb(p)}<div><div class="f-name">${esc(p.name)}</div><div class="muted small">${esc([p.brand, p.ml ? p.ml + ' ml' : ''].filter(Boolean).join(' · '))} · stock ${p.stock}</div></div><div class="f-price num">${fmt.money(priceOf(p))}</div>`);
+      flash(`${thumb(p)}<div><div class="f-name">${esc(p.name)}</div><div class="muted small">${esc([p.brand, p.ml ? p.ml + ' ml' : ''].filter(Boolean).join(' · '))} · stock ${p.stock}</div></div><div class="f-price num">${priceTxt(p)}</div>`);
       if (mode === 'sell') addToCart(p); else priceCheck(p);
       return;
     }
@@ -111,6 +139,54 @@
     } catch {}
     beep(false);
     flash(`<div><div class="f-name">Código no registrado</div><div class="muted small num">${esc(code)}</div></div>`, true);
+    if (api.can('products')) assignCode(code);
+  }
+
+  // Frasco con código nuevo: se asigna a un perfume ya capturado (o se crea uno)
+  function assignCode(code) {
+    const m = modal({
+      title: 'Código nuevo',
+      body: `<p class="muted" style="margin-top:0">El código <b class="num">${esc(code)}</b> no está registrado. ¿De qué perfume es? Se guardará para que la próxima vez se reconozca solo.</p>
+        <input class="input" id="acQ" placeholder="Busca el perfume por nombre o marca…" autocomplete="off">
+        <div id="acL" style="margin-top:10px;display:flex;flex-direction:column;gap:6px;max-height:320px;overflow:auto"></div>`,
+      actions: [{ label: 'Cancelar' }],
+      onMount: el => {
+        const draw = () => {
+          const q = norm($('#acQ', el).value);
+          const list = products.filter(p => !q || norm([p.name, p.brand].join(' ')).includes(q)).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 40);
+          $('#acL', el).innerHTML = list.map(p => `<button class="btn" style="justify-content:space-between;border-radius:12px;text-align:left" data-id="${p.id}"><span>${esc(p.name)} <small class="muted">${esc(p.brand || '')} · stock ${p.stock}</small></span><small class="muted num">${esc(p.barcode)}</small></button>`).join('') || '<p class="muted">Sin resultados</p>';
+        };
+        draw();
+        $('#acQ', el).oninput = draw;
+        setTimeout(() => $('#acQ', el).focus(), 60);
+        $('#acL', el).onclick = async e => {
+          const b = e.target.closest('button'); if (!b) return;
+          const p = products.find(x => x.id === b.dataset.id);
+          try {
+            const r = await api.put('/products/' + p.id, { barcode: code });
+            Object.assign(p, r); m.close(); toast(`Código guardado en ${p.name}`);
+            if (mode === 'sell') addToCart(p); else priceCheck(p);
+          } catch (err) { toast(err.message, 'err'); }
+        };
+      },
+    });
+  }
+
+  // Perfume sin precio: quien administra productos lo captura aquí mismo
+  function askPrice(p, then) {
+    if (!api.can('products')) { toast(`${p.name} no tiene precio. Pide que lo capturen en Productos.`, 'err'); return; }
+    modal({
+      title: 'Perfume sin precio',
+      body: `<p class="muted" style="margin-top:0"><b>${esc(p.name)}</b> todavía no tiene precio. Escríbelo para venderlo (se guarda en Productos).</p>
+        <label class="field"><span>Precio de venta</span><input class="input num" id="apP" type="number" min="1" step="1" inputmode="decimal" style="font-size:22px;text-align:center"></label>`,
+      onMount: el => setTimeout(() => $('#apP', el).focus(), 60),
+      actions: [{ label: 'Cancelar' }, { label: 'Guardar precio', cls: 'primary', onClick: async m => {
+        const v = Number($('#apP', m.el).value);
+        if (!(v > 0)) throw new Error('Escribe un precio mayor a 0');
+        Object.assign(p, await api.put('/products/' + p.id, { price: v }));
+        toast('Precio guardado'); renderQuick(); then();
+      } }],
+    });
   }
 
   function priceCheck(p) {
@@ -118,7 +194,7 @@
       body: `<div class="price-check"><div class="img">${ui.media(p, { lazy: false })}</div>
         <p class="eyebrow">${esc(p.brand || '')}</p><h2 style="margin:4px 0">${esc(p.name)}</h2>
         <p class="muted">${esc([p.category, p.family, p.ml ? p.ml + ' ml' : ''].filter(Boolean).join(' · '))}</p>
-        ${p.offerPrice > 0 ? `<s class="muted">${fmt.money(p.price)}</s>` : ''}<div class="pc-price num">${fmt.money(priceOf(p))}</div>
+        ${p.offerPrice > 0 ? `<s class="muted">${fmt.money(p.price)}</s>` : ''}<div class="pc-price num">${priceTxt(p)}</div>
         <p><span class="badge ${p.stock > 0 ? 'ok' : 'bad'}">${p.stock > 0 ? p.stock + ' en existencia' : 'Agotado'}</span> <span class="muted small num">${esc(p.barcode)}</span></p></div>`,
       actions: [{ label: 'Cerrar' }, { label: 'Agregar al carrito', cls: 'primary', onClick: () => addToCart(p) }],
     });
@@ -126,6 +202,7 @@
 
   // ---------- Carrito ----------
   function addToCart(p, qty = 1) {
+    if (!(priceOf(p) > 0)) return askPrice(p, () => addToCart(p, qty));
     const line = st.cart.find(l => l.id === p.id);
     const inCart = line ? line.qty : 0;
     if (inCart + qty > p.stock) { toast(p.stock <= 0 ? `${p.name} está agotado` : `Solo hay ${p.stock} de ${p.name}`, 'err'); return; }
@@ -235,7 +312,7 @@
     if (q.length < 2) { box.classList.add('hidden'); matches = []; return; }
     matches = products.filter(p => p.active !== false && norm([p.name, p.brand, p.barcode, p.sku].join(' ')).includes(q)).slice(0, 7);
     sel = 0;
-    box.innerHTML = matches.map((p, i) => `<button type="button" data-id="${p.id}" class="${i === 0 ? 'on' : ''}">${thumb(p)}<span><b>${esc(p.name)}</b><br><small class="muted">${esc(p.brand || '')} · stock ${p.stock}</small></span><span class="s-price num">${fmt.money(priceOf(p))}</span></button>`).join('');
+    box.innerHTML = matches.map((p, i) => `<button type="button" data-id="${p.id}" class="${i === 0 ? 'on' : ''}">${thumb(p)}<span><b>${esc(p.name)}</b><br><small class="muted">${esc(p.brand || '')} · stock ${p.stock}</small></span><span class="s-price num">${priceTxt(p)}</span></button>`).join('');
     box.classList.toggle('hidden', !matches.length);
   });
   $('#code').addEventListener('keydown', e => {
@@ -265,8 +342,9 @@
 
   // ---------- Accesos rápidos ----------
   function renderQuick() {
-    const list = products.filter(p => p.active !== false).sort((a, b) => (b.featured - a.featured) || a.name.localeCompare(b.name));
-    $('#quick').innerHTML = list.map(p => `<button class="q-item ${p.stock <= 0 ? 'out' : ''}" data-id="${p.id}">${thumb(p)}<b>${esc(p.name)}</b><span class="num">${fmt.money(priceOf(p))}</span></button>`).join('');
+    // Accesos rápidos: solo lo que hay en existencia (lo demás se encuentra con el buscador)
+    const list = products.filter(p => p.active !== false && p.stock > 0).sort((a, b) => (b.featured - a.featured) || a.name.localeCompare(b.name));
+    $('#quick').innerHTML = list.map(p => `<button class="q-item ${p.stock <= 0 ? 'out' : ''}" data-id="${p.id}">${thumb(p)}<b>${esc(p.name)}</b><span class="num">${priceTxt(p)}</span></button>`).join('');
   }
   $('#quick').onclick = e => { const b = e.target.closest('.q-item'); if (!b) return; const p = products.find(x => x.id === b.dataset.id); mode === 'sell' ? addToCart(p) : priceCheck(p); };
 
@@ -352,7 +430,7 @@
         const received = method === 'efectivo' ? Number($('#rec', m.el).value) || 0 : t.total;
         if (method === 'efectivo' && received < t.total) throw new Error('El efectivo recibido no cubre el total');
         const sale = await api.post('/sales', { items: t.lines.map(l => ({ productId: l.id, qty: l.qty })), customerId: st.customer?.id, discount: t.discount, cashbackUsed: t.cashbackUsed, redeemReward: st.redeem && t.canRedeem, method, received, expectedTotal: t.total })
-          .catch(async e => { await refreshState(); throw e; });
+          .catch(async e => { await refreshState(); if (/caja/i.test(e.message)) loadCash(true); throw e; });
         st.cart = []; st.discount = 0; st.cashUse = 0; st.redeem = false; st.customer = null;
         $('#cartPanel').classList.remove('open');
         await loadProducts(); render();

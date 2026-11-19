@@ -8,8 +8,10 @@
   const SECTIONS = {
     dashboard: { label: 'Panel', ic: '◈' },
     pos: { label: 'Punto de venta', ic: '⌁' },
+    cash: { label: 'Caja', ic: '▣' },
     products: { label: 'Productos', ic: '❖' },
     inventory: { label: 'Inventario', ic: '▤' },
+    reports: { label: 'Reportes', ic: '▦' },
     loyalty: { label: 'Tarjetas de lealtad', ic: '♦' },
     sales: { label: 'Ventas', ic: '$' },
     appearance: { label: 'Apariencia', ic: '✦' },
@@ -59,6 +61,7 @@
 
   // ---------- Arranque ----------
   async function boot() {
+    if (!(await api.online())) return ui.offlineNotice('Administración');
     if (!api.token) return showLogin();
     try {
       await api.me();
@@ -94,7 +97,7 @@
     $('#who').textContent = `${u.name} · ${u.role === 'admin' ? 'Administrador' : 'Personal'}`;
     if (S.logo) $('.side-logo img').src = S.logo;
     $('#nav').innerHTML = Object.entries(SECTIONS).filter(([k]) => api.can(k))
-      .map(([k, v]) => `<a href="${k === 'pos' ? '/pos' : '#/' + k}" data-sec="${k}"><span class="ic">${v.ic}</span>${v.label}</a>`).join('');
+      .map(([k, v]) => `<a href="#/${k}" data-sec="${k}"><span class="ic">${v.ic}</span>${v.label}</a>`).join('');
     if (u.mustChangePassword) { view.innerHTML = '<div class="card">Cambia la contraseña inicial para continuar.</div>'; forcePassword(); }
     else route();
   }
@@ -122,16 +125,18 @@
 
   function route() {
     if ($('#shell').classList.contains('hidden')) return;
-    const allowed = Object.keys(SECTIONS).filter(k => k !== 'pos' && api.can(k));
+    const allowed = Object.keys(SECTIONS).filter(k => api.can(k));
     let sec = (location.hash.match(/^#\/(\w+)/) || [])[1];
+    // Quien solo tiene el punto de venta lo usa a pantalla completa (ideal en celular)
+    if (allowed.length === 1 && allowed[0] === 'pos') { location.href = '/pos'; return; }
     if (!allowed.includes(sec)) {
-      if (!allowed.length && api.can('pos')) { location.href = '/pos'; return; }
-      sec = allowed[0];
+      sec = allowed.find(k => k !== 'pos') || allowed[0];
       if (!sec) { view.innerHTML = '<div class="card">Tu usuario no tiene secciones asignadas. Pide acceso a un administrador.</div>'; return; }
     }
     $$('#nav a').forEach(a => a.classList.toggle('on', a.dataset.sec === sec));
     $('#side').classList.remove('open');
     $('#title').textContent = SECTIONS[sec].label;
+    document.body.dataset.sec = sec;
     view.innerHTML = '<p class="muted">Cargando…</p>';
     Views[sec]().catch(e => { view.innerHTML = `<div class="card">Error: ${esc(e.message)}</div>`; });
   }
@@ -141,8 +146,9 @@
 
   // ---------- Panel ----------
   Views.dashboard = async () => {
-    const [sales, products] = await Promise.all([api.get('/sales'), api.get('/products')]);
+    const [sales, products, cash] = await Promise.all([api.get('/sales'), api.get('/products'), (api.can('cash') || api.can('pos')) ? api.get('/cash').catch(() => null) : null]);
     const ok = sales.filter(s => s.status !== 'cancelada');
+    const noPrice = products.filter(p => p.active && !(p.price > 0)).length;
     const today = new Date().toDateString();
     const now = new Date();
     const tSales = ok.filter(s => new Date(s.date).toDateString() === today);
@@ -157,7 +163,13 @@
     for (const s of mSales) for (const it of s.items) { top[it.name] = top[it.name] || { q: 0, t: 0 }; top[it.name].q += it.qty; top[it.name].t += it.total; }
     const topList = Object.entries(top).sort((a, b) => b[1].q - a[1].q).slice(0, 6);
 
+    const alerts = [];
+    if (cash) alerts.push(cash.current
+      ? `<span class="badge ok">Caja #${cash.current.number} abierta</span> desde ${fmt.date(cash.current.openedAt)} · efectivo esperado <b class="num">${fmt.money(cash.current.summary.expectedCash)}</b> ${api.can('cash') ? '<a href="#/cash">Ver caja →</a>' : ''}`
+      : `<span class="badge warn">Caja cerrada</span> ${cash.requireCash ? 'Ábrela para poder vender.' : ''} ${api.can('cash') ? '<a href="#/cash">Abrir caja →</a>' : ''}`);
+    if (noPrice && api.can('products')) alerts.push(`<span class="badge warn">${noPrice} perfumes sin precio</span> No se pueden vender hasta capturar su precio. <a href="#/products" id="dNoPrice">Capturar precios →</a>`);
     view.innerHTML = `
+      ${alerts.length ? `<div class="card alert-card">${alerts.map(a => `<div>${a}</div>`).join('')}</div>` : ''}
       <div class="kpis">
         <div class="card kpi"><div class="label">Ventas de hoy</div><div class="value num">${fmt.money(sum(tSales))}</div><div class="sub">${tSales.length} tickets</div></div>
         <div class="card kpi"><div class="label">Ventas del mes</div><div class="value num">${fmt.money(sum(mSales))}</div><div class="sub">${mSales.length} tickets · prom. ${fmt.money(mSales.length ? sum(mSales) / mSales.length : 0)}</div></div>
@@ -177,41 +189,235 @@
           ${ok.length ? `<table class="t">${ok.slice(0, 8).map(s => `<tr><td>#${s.folio}</td><td class="muted small">${fmt.date(s.date)}</td><td>${esc(s.userName)}</td><td class="r num">${fmt.money(s.total)}</td></tr>`).join('')}</table>` : '<p class="muted">Sin ventas registradas.</p>'}
         </div>
         <div class="card"><h3>Reabastecer</h3>
-          ${low.length ? `<table class="t">${low.map(p => `<tr><td>${esc(p.name)}</td><td class="r"><span class="badge ${p.stock ? 'warn' : 'bad'}">${p.stock} / mín ${p.minStock}</span></td></tr>`).join('')}</table>` : '<p class="muted">Todo el inventario está en orden.</p>'}
+          ${low.length ? `<table class="t">${low.slice().sort((a, b) => b.stock - a.stock).slice(0, 12).map(p => `<tr><td>${esc(p.name)}</td><td class="r"><span class="badge ${p.stock ? 'warn' : 'bad'}">${p.stock} / mín ${p.minStock}</span></td></tr>`).join('')}</table>${low.length > 12 ? `<p class="muted small">y ${low.length - 12} más · <a href="#/inventory">ver inventario →</a></p>` : ''}` : '<p class="muted">Todo el inventario está en orden.</p>'}
         </div>
       </div>`;
+    const np = $('#dNoPrice'); if (np) np.onclick = () => sessionStorage.setItem('parra_pfilter', 'noprice');
+  };
+
+  // ---------- Punto de venta (dentro del admin) ----------
+  Views.pos = async () => {
+    view.innerHTML = `<div class="pos-embed"><iframe src="/pos?embed=1" title="Punto de venta" allow="camera; fullscreen"></iframe>
+      <p class="muted small">¿Vendes desde el celular? Abre <a href="/pos" target="_blank">el punto de venta en pantalla completa ↗</a> para usar la cámara como escáner.</p></div>`;
+  };
+
+  // ---------- Caja ----------
+  Views.cash = async () => {
+    const d = await api.get('/cash');
+    const cs = d.current;
+    view.innerHTML = `
+      <div class="grid-2">
+        <div class="card"><h3>${cs ? `Caja #${cs.number} <span class="badge ok">abierta</span>` : 'Caja <span class="badge warn">cerrada</span>'}</h3>
+          ${cs ? `<p class="muted small" style="margin-top:0">Abrió <b>${esc(cs.openedBy)}</b> · ${fmt.date(cs.openedAt)}${cs.note ? ' · ' + esc(cs.note) : ''}</p>${CashUI.summaryRows(cs)}
+            <div class="toolbar" style="margin-top:14px"><button class="btn" id="kIn">+ Entrada</button><button class="btn" id="kOut">− Salida</button><button class="btn" id="kPrint">Imprimir parcial</button><span class="spacer"></span><button class="btn primary" id="kClose">Hacer corte y cerrar</button></div>
+            ${CashUI.movementsHtml(cs)}`
+          : `<p class="muted">${d.requireCash ? 'Para vender en el punto de venta primero se abre la caja con el fondo inicial.' : 'Abre la caja para llevar el control del efectivo de cada turno y hacer el corte al final.'}</p>
+            <button class="btn primary" id="kOpen">Abrir caja</button>`}
+        </div>
+        <div class="card"><h3>¿Cómo funciona?</h3>
+          <ol class="muted small steps">
+            <li><b>Abrir caja:</b> al iniciar el turno cuentas el fondo (cambio) y lo registras.</li>
+            <li>Cada venta del punto de venta se suma a la caja abierta, separada por efectivo, tarjeta y transferencia.</li>
+            <li><b>Entradas / salidas:</b> dinero que entra o sale sin ser venta (gastos, retiros, cambio extra).</li>
+            <li><b>Corte:</b> cuentas el efectivo; el sistema calcula lo esperado y te dice si sobra o falta. Se imprime el ticket del corte.</li>
+          </ol>
+        </div>
+      </div>
+      ${api.can('cash') ? `<div class="card"><h3>Cortes anteriores</h3><div class="table-wrap" style="border:0"><table class="t"><thead><tr><th>#</th><th>Apertura</th><th>Cierre</th><th class="r">Ventas</th><th class="r">Esperado</th><th class="r">Contado</th><th class="r">Diferencia</th><th></th></tr></thead><tbody id="kh">
+        ${d.history.map(h => `<tr><td class="num">#${h.number}</td><td class="small">${fmt.date(h.openedAt)}<br><span class="muted">${esc(h.openedBy)}</span></td><td class="small">${fmt.date(h.closedAt)}<br><span class="muted">${esc(h.closedBy)}</span></td>
+          <td class="r num">${fmt.money(h.summary.total)}<br><span class="muted small">${h.summary.sales} ventas</span></td><td class="r num">${fmt.money(h.summary.expectedCash)}</td><td class="r num">${fmt.money(h.summary.counted)}</td>
+          <td class="r"><span class="badge ${h.summary.difference < 0 ? 'bad' : h.summary.difference > 0 ? 'warn' : 'ok'}">${h.summary.difference > 0 ? '+' : ''}${fmt.money(h.summary.difference)}</span></td>
+          <td class="actions"><button class="btn sm" data-k="${h.id}">Ver corte</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty-row">Aún no hay cortes</td></tr>'}
+      </tbody></table></div></div>` : ''}`;
+    const reload = () => Views.cash();
+    const on = (id, f) => { const b = $(id); if (b) b.onclick = f; };
+    on('#kOpen', () => CashUI.openForm(modal, reload));
+    on('#kIn', () => CashUI.moveForm(modal, 'in', reload));
+    on('#kOut', () => CashUI.moveForm(modal, 'out', reload));
+    on('#kPrint', () => CashUI.printCorte(cs, S));
+    on('#kClose', () => CashUI.closeForm(modal, cs, S, reload));
+    const kh = $('#kh');
+    if (kh) kh.onclick = e => { const b = e.target.closest('[data-k]'); if (!b) return; const h = d.history.find(x => x.id === b.dataset.k); modal({ title: `Corte #${h.number}`, body: CashUI.corteHtml(h, S), actions: [{ label: 'Cerrar' }, { label: 'Imprimir', cls: 'primary', onClick: () => { CashUI.printCorte(h, S); return false; } }] }); };
+  };
+
+  // ---------- Reportes ----------
+  const localDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const downloadCsv = (name, rows) => {
+    const csv = '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = name; a.click();
+  };
+  Views.reports = async () => {
+    const now = new Date();
+    const presets = {
+      hoy: [now, now],
+      semana: [new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7)), now],
+      mes: [new Date(now.getFullYear(), now.getMonth(), 1), now],
+      pasado: [new Date(now.getFullYear(), now.getMonth() - 1, 1), new Date(now.getFullYear(), now.getMonth(), 0)],
+      anio: [new Date(now.getFullYear(), 0, 1), now],
+    };
+    view.innerHTML = `
+      <div class="toolbar">
+        <div class="seg" id="rp"><button data-p="hoy">Hoy</button><button data-p="semana">Semana</button><button data-p="mes" class="on">Mes</button><button data-p="pasado">Mes pasado</button><button data-p="anio">Año</button></div>
+        <label class="field"><span>Desde</span><input class="input" type="date" id="rf" value="${localDay(presets.mes[0])}"></label>
+        <label class="field"><span>Hasta</span><input class="input" type="date" id="rt" value="${localDay(now)}"></label>
+        <span class="spacer"></span>
+        <button class="btn" id="rPrint" style="align-self:flex-end">Imprimir</button>
+      </div>
+      <div id="rBody"><p class="muted">Cargando…</p></div>`;
+    let R = null;
+    const load = async () => { R = await api.get(`/reports?from=${$('#rf').value}&to=${$('#rt').value}`); draw(); };
+    const table = (id, head, rows, empty = 'Sin datos en este periodo') => `<div class="table-wrap" style="border:0"><table class="t" id="${id}"><thead><tr>${head.map((h, i) => `<th class="${i ? 'r' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(r => `<tr>${r.map((c, i) => `<td class="${i ? 'r num' : ''}">${c}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${head.length}" class="empty-row">${empty}</td></tr>`}</tbody></table></div>`;
+    const csvBtn = key => `<button class="btn sm" data-csv="${key}">CSV</button>`;
+    const pct = (a, b) => b ? Math.round(a / b * 1000) / 10 + '%' : '—';
+    function draw() {
+      const s = R.summary, inv = R.inventory;
+      const max = Math.max(1, ...R.byDay.map(d => d.total));
+      const hmax = Math.max(1, ...R.byHour.map(h => h.total));
+      const groupRows = list => list.map(g => [esc(g.key), g.qty, fmt.money(g.revenue), fmt.money(g.profit), pct(g.profit, g.revenue)]);
+      $('#rBody').innerHTML = `
+        <div class="kpis">
+          <div class="card kpi"><div class="label">Ventas</div><div class="value num">${fmt.money(s.revenue)}</div><div class="sub">${s.sales} tickets · ${s.units} piezas${s.cancelled ? ` · ${s.cancelled} canceladas` : ''}</div></div>
+          <div class="card kpi"><div class="label">Ticket promedio</div><div class="value num">${fmt.money(s.avgTicket)}</div><div class="sub">${s.withCustomer} con tarjeta de lealtad</div></div>
+          <div class="card kpi"><div class="label">Utilidad bruta</div><div class="value num ${s.profit >= 0 ? 'gold' : ''}">${fmt.money(s.profit)}</div><div class="sub">Margen ${s.margin}% · costo ${fmt.money(s.cost)}</div></div>
+          <div class="card kpi"><div class="label">Descuentos y lealtad</div><div class="value num">${fmt.money(s.discounts + s.rewards + s.cashbackUsed)}</div><div class="sub">Desc. ${fmt.money(s.discounts)} · canjes ${fmt.money(s.rewards + s.cashbackUsed)}</div></div>
+        </div>
+        ${inv.noPrice || inv.noCost ? `<div class="card alert-card"><b>Datos por completar:</b> ${inv.noPrice ? `${inv.noPrice} perfumes sin precio` : ''}${inv.noPrice && inv.noCost ? ' · ' : ''}${inv.noCost ? `${inv.noCost} sin costo (la utilidad se calcula con costo 0)` : ''}. <a href="#/products">Ir a Productos →</a></div>` : ''}
+        <div class="card"><h3>Ventas por día</h3>
+          <div class="bars ${R.byDay.length > 31 ? 'dense' : ''}">${R.byDay.map(d => `<div class="b" title="${d.day}: ${fmt.money(d.total)} (${d.sales})"><i style="height:${(d.total / max) * 100}%"></i><span>${R.byDay.length <= 31 ? Number(d.day.slice(8)) : ''}</span></div>`).join('')}</div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="card-h"><h3>Formas de pago</h3>${csvBtn('byMethod')}</div>${table('tMethod', ['Forma', 'Ventas', 'Total', '%'], R.byMethod.map(m => [m.key[0].toUpperCase() + m.key.slice(1), m.sales, fmt.money(m.total), pct(m.total, s.revenue)]))}</div>
+          <div class="card"><div class="card-h"><h3>Vendedores</h3>${csvBtn('bySeller')}</div>${table('tSeller', ['Vendedor', 'Ventas', 'Total', 'Ticket prom.'], R.bySeller.map(v => [esc(v.key), v.sales, fmt.money(v.total), fmt.money(v.sales ? v.total / v.sales : 0)]))}</div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><div class="card-h"><h3>Por categoría</h3>${csvBtn('byCategory')}</div>${table('tCat', ['Categoría', 'Pzas', 'Venta', 'Utilidad', 'Margen'], groupRows(R.byCategory))}</div>
+          <div class="card"><div class="card-h"><h3>Por marca</h3>${csvBtn('byBrand')}</div>${table('tBrand', ['Marca', 'Pzas', 'Venta', 'Utilidad', 'Margen'], groupRows(R.byBrand.slice(0, 15)))}</div>
+        </div>
+        <div class="card"><div class="card-h"><h3>Perfumes más vendidos</h3>${csvBtn('topProducts')}</div>${table('tTop', ['Perfume', 'Pzas', 'Venta', 'Utilidad', 'Margen'], groupRows(R.topProducts))}</div>
+        <div class="grid-2">
+          <div class="card"><h3>Horas con más ventas</h3>
+            <div class="bars hours">${R.byHour.filter(h => h.hour >= 8 && h.hour <= 22).map(h => `<div class="b" title="${h.hour}:00 · ${fmt.money(h.total)} (${h.sales})"><i style="height:${(h.total / hmax) * 100}%"></i><span>${h.hour}</span></div>`).join('')}</div>
+          </div>
+          <div class="card"><h3>Club de lealtad</h3>${table('tLoy', ['Concepto', 'Valor'], [
+            ['Clientes nuevos', s.newCustomers], ['Ventas con tarjeta', `${s.withCustomer} de ${s.sales}`],
+            ['Cashback entregado', fmt.money(s.cashbackEarned)], ['Cashback usado', fmt.money(s.cashbackUsed)],
+            ['Sellos entregados', s.stampsEarned], ['Recompensas canjeadas', fmt.money(s.rewards)]])}</div>
+        </div>
+        <div class="grid-2">
+          <div class="card"><h3>Inventario actual</h3>${table('tInv', ['Concepto', 'Valor'], [
+            ['Perfumes activos', inv.products], ['Piezas en existencia', inv.units], ['Valor a costo', fmt.money(inv.atCost)], ['Valor a precio de venta', fmt.money(inv.atPrice)],
+            ['Agotados', inv.outOfStock], ['Stock bajo', inv.low], ['Sin precio', inv.noPrice]])}</div>
+          <div class="card"><div class="card-h"><h3>Con existencia y sin ventas</h3>${csvBtn('noSales')}</div>${table('tNo', ['Perfume', 'Existencia'], inv.noSales.slice(0, 30).map(p => [`${esc(p.name)} <small class="muted">${esc(p.brand || '')}</small>`, p.stock]), 'Todo lo que tienes en existencia se vendió en este periodo')}</div>
+        </div>`;
+    }
+    const exportCsv = key => {
+      const g = list => [['Nombre', 'Piezas', 'Venta', 'Costo', 'Utilidad']].concat(list.map(x => [x.key, x.qty, x.revenue, x.cost, x.profit]));
+      const data = {
+        byMethod: [['Forma de pago', 'Ventas', 'Total']].concat(R.byMethod.map(m => [m.key, m.sales, m.total])),
+        bySeller: [['Vendedor', 'Ventas', 'Total']].concat(R.bySeller.map(m => [m.key, m.sales, m.total])),
+        byCategory: g(R.byCategory), byBrand: g(R.byBrand), topProducts: g(R.topProducts),
+        noSales: [['Perfume', 'Marca', 'Existencia']].concat(R.inventory.noSales.map(p => [p.name, p.brand, p.stock])),
+      }[key];
+      downloadCsv(`reporte-${key}-${R.from}-a-${R.to}.csv`, data);
+    };
+    $('#rBody').onclick = e => { const b = e.target.closest('[data-csv]'); if (b) exportCsv(b.dataset.csv); };
+    $('#rp').onclick = e => {
+      const b = e.target.closest('button'); if (!b) return;
+      const [f, t] = presets[b.dataset.p]; $('#rf').value = localDay(f); $('#rt').value = localDay(t);
+      $$('#rp button').forEach(x => x.classList.toggle('on', x === b)); load();
+    };
+    ['#rf', '#rt'].forEach(s => $(s).addEventListener('change', () => { $$('#rp button').forEach(x => x.classList.remove('on')); load(); }));
+    $('#rPrint').onclick = () => {
+      let pa = document.getElementById('printArea');
+      if (!pa) { pa = document.createElement('div'); pa.id = 'printArea'; document.body.appendChild(pa); }
+      pa.innerHTML = `<div class="report-print"><h2>${esc(S.storeName)} · Reporte del ${R.from} al ${R.to}</h2>${$('#rBody').innerHTML}</div>`;
+      window.print();
+    };
+    await load();
   };
 
   // ---------- Productos ----------
   Views.products = async () => {
     let products = await api.get('/products');
+    let quick = false;
+    const cats = () => [...new Set(products.map(p => p.category).filter(Boolean))].sort();
+    const startFilter = sessionStorage.getItem('parra_pfilter') || ''; sessionStorage.removeItem('parra_pfilter');
     view.innerHTML = `
       <div class="toolbar">
         <input class="input" id="pq" type="search" placeholder="Buscar por nombre, marca o código…">
-        <select class="input" id="pf"><option value="">Todos</option><option value="active">Visibles</option><option value="hidden">Ocultos</option><option value="featured">Destacados</option></select>
+        <select class="input" id="pc"><option value="">Todas las categorías</option>${cats().map(c => `<option>${esc(c)}</option>`).join('')}</select>
+        <select class="input" id="pf"><option value="">Todos</option><option value="noprice">Sin precio</option><option value="nophoto">Sin foto</option><option value="instock">Con existencia</option><option value="out">Agotados</option><option value="active">Visibles</option><option value="hidden">Ocultos</option><option value="featured">Destacados</option></select>
+        <span class="spacer"></span>
+        <button class="btn" id="pQuick" title="Captura precios, costos y códigos directo en la tabla">✎ Edición rápida</button>
+        <button class="btn" id="pMore">Importar / exportar ▾</button>
         <button class="btn" id="pScan">⌁ Escanear</button>
         <button class="btn primary" id="pNew">+ Nuevo perfume</button>
       </div>
-      <div class="table-wrap"><table class="t"><thead><tr><th></th><th>Perfume</th><th>Código</th><th class="r">Precio</th><th class="r">Stock</th><th>Catálogo</th><th></th></tr></thead><tbody id="pt"></tbody></table></div>`;
+      <p class="muted small" id="pCount" style="margin:-6px 0 10px"></p>
+      <div class="table-wrap"><table class="t"><thead id="ph"></thead><tbody id="pt"></tbody></table></div>`;
+    $('#pf').value = startFilter;
+    const filtered = () => {
+      const q = $('#pq').value.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''), f = $('#pf').value, c = $('#pc').value;
+      return products.filter(p => (!q || [p.name, p.brand, p.barcode, p.sku].join(' ').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(q)) && (!c || p.category === c)
+        && (!f || (f === 'active' && p.active) || (f === 'hidden' && !p.active) || (f === 'featured' && p.featured) || (f === 'noprice' && !(p.price > 0))
+          || (f === 'nophoto' && !p.image) || (f === 'instock' && p.stock > 0) || (f === 'out' && p.stock <= 0)));
+    };
+    const priceCell = p => !(p.price > 0) ? '<span class="badge warn">Sin precio</span>' : p.offerPrice > 0 ? `<s class="muted small">${fmt.money(p.price)}</s><br>${fmt.money(p.offerPrice)}` : fmt.money(p.price);
     const draw = () => {
-      const q = $('#pq').value.toLowerCase(), f = $('#pf').value;
-      const list = products.filter(p => (!q || [p.name, p.brand, p.barcode, p.sku].join(' ').toLowerCase().includes(q))
-        && (!f || (f === 'active' && p.active) || (f === 'hidden' && !p.active) || (f === 'featured' && p.featured)));
+      const list = filtered();
+      const noPrice = products.filter(p => !(p.price > 0)).length;
+      $('#pCount').innerHTML = `${list.length} de ${products.length} perfumes${noPrice ? ` · <a href="#" id="pNoPrice">${noPrice} sin precio</a>` : ''}`;
+      const np = $('#pNoPrice'); if (np) np.onclick = e => { e.preventDefault(); $('#pf').value = 'noprice'; draw(); };
+      $('#pQuick').classList.toggle('primary', quick);
+      if (quick) {
+        $('#ph').innerHTML = '<tr><th>Perfume</th><th>Categoría</th><th>Código de barras</th><th class="r">Precio</th><th class="r">Oferta</th><th class="r">Costo</th><th class="r">ml</th><th></th></tr>';
+        $('#pt').innerHTML = list.map(p => `<tr data-id="${p.id}">
+          <td class="pname">${esc(p.name)}<small>${esc(p.brand || '')} · stock ${p.stock}</small></td>
+          <td><input class="input qe" data-f="category" value="${esc(p.category)}" list="qeCats" style="width:100px"></td>
+          <td><div class="input-group"><input class="input qe num" data-f="barcode" value="${esc(p.barcode)}" style="width:140px"><button class="btn sm" data-qscan="${p.id}" title="Escanear">⌁</button></div></td>
+          <td class="r"><input class="input qe num" data-f="price" type="number" min="0" step="1" value="${p.price || ''}" placeholder="0" style="width:96px"></td>
+          <td class="r"><input class="input qe num" data-f="offerPrice" type="number" min="0" step="1" value="${p.offerPrice || ''}" placeholder="—" style="width:90px"></td>
+          <td class="r"><input class="input qe num" data-f="cost" type="number" min="0" step="1" value="${p.cost || ''}" placeholder="0" style="width:90px"></td>
+          <td class="r"><input class="input qe num" data-f="ml" type="number" min="0" step="1" value="${p.ml || ''}" placeholder="—" style="width:70px"></td>
+          <td class="qe-st"></td></tr>`).join('') + `<datalist id="qeCats">${['Caballero', 'Dama', 'Unisex', ...cats()].filter((v, i, a) => a.indexOf(v) === i).map(c => `<option>${esc(c)}</option>`).join('')}</datalist>`;
+        return;
+      }
+      $('#ph').innerHTML = '<tr><th></th><th>Perfume</th><th>Código</th><th class="r">Precio</th><th class="r">Stock</th><th>Catálogo</th><th></th></tr>';
       $('#pt').innerHTML = list.map(p => `<tr>
         <td>${thumb(p)}</td>
         <td class="pname">${esc(p.name)}<small>${esc([p.brand, p.category, p.ml ? p.ml + ' ml' : ''].filter(Boolean).join(' · '))}</small></td>
         <td class="num small">${esc(p.barcode)}</td>
-        <td class="r num">${p.offerPrice > 0 ? `<s class="muted small">${fmt.money(p.price)}</s><br>${fmt.money(p.offerPrice)}` : fmt.money(p.price)}</td>
+        <td class="r num">${priceCell(p)}</td>
         <td class="r"><span class="badge ${p.stock <= 0 ? 'bad' : p.stock <= p.minStock ? 'warn' : 'ok'}">${p.stock}</span></td>
         <td><label class="check"><input type="checkbox" data-vis="${p.id}" ${p.active ? 'checked' : ''}> ${p.featured ? '<span class="badge">★</span>' : ''}</label></td>
         <td class="actions">
           <button class="btn sm" data-label="${p.id}" title="Imprimir etiqueta">Etiqueta</button>
           <button class="btn sm" data-edit="${p.id}">Editar</button>
           <button class="btn sm danger" data-del="${p.id}" title="Quitar perfume">✕</button>
-        </td></tr>`).join('') || '<tr><td colspan="7" class="empty-row">No hay perfumes. Agrega el primero.</td></tr>';
+        </td></tr>`).join('') || '<tr><td colspan="7" class="empty-row">No hay perfumes con esos filtros.</td></tr>';
     };
     draw();
-    $('#pq').oninput = draw; $('#pf').onchange = draw;
+    $('#pq').oninput = draw; $('#pf').onchange = draw; $('#pc').onchange = draw;
+    $('#pQuick').onclick = () => { quick = !quick; draw(); if (quick) toast('Edición rápida: cada cambio se guarda solo al salir de la casilla'); };
+    // Edición rápida: guarda cada casilla al cambiar
+    $('#pt').addEventListener('change', async e => {
+      const inp = e.target.closest('.qe'); if (!inp) return;
+      const tr = inp.closest('tr'), p = products.find(x => x.id === tr.dataset.id), f = inp.dataset.f;
+      const val = ['price', 'offerPrice', 'cost', 'ml'].includes(f) ? Number(inp.value || 0) : inp.value.trim();
+      const stc = $('.qe-st', tr);
+      try {
+        const r = await api.put('/products/' + p.id, { [f]: val });
+        Object.assign(p, r); stc.innerHTML = '<span class="gold">✓</span>'; inp.classList.remove('err');
+      } catch (err) { stc.innerHTML = ''; inp.classList.add('err'); inp.value = p[f] || ''; toast(err.message, 'err'); }
+    });
+    $('#pt').addEventListener('keydown', e => {
+      // Enter baja a la misma columna de la siguiente fila (captura rápida de precios)
+      if (e.key !== 'Enter' || !e.target.classList.contains('qe')) return;
+      e.preventDefault();
+      const f = e.target.dataset.f, next = e.target.closest('tr').nextElementSibling;
+      const n = next && $(`.qe[data-f="${f}"]`, next); if (n) { n.focus(); n.select && n.select(); } else e.target.blur();
+    });
+    $('#pMore').onclick = () => importExport(products, async () => { products = await api.get('/products'); draw(); });
     $('#pNew').onclick = () => productForm(null, async () => { products = await api.get('/products'); draw(); });
     $('#pScan').onclick = async () => {
       const code = await scanOnce('Buscar producto');
@@ -223,6 +429,11 @@
     };
     $('#pt').onclick = async e => {
       const t = e.target.closest('button'); if (!t) return;
+      if (t.dataset.qscan) {
+        const code = await scanOnce('Escanear código del perfume'); if (!code) return;
+        const inp = $(`tr[data-id="${t.dataset.qscan}"] .qe[data-f="barcode"]`); inp.value = code; inp.dispatchEvent(new Event('change', { bubbles: true }));
+        return;
+      }
       const p = products.find(x => x.id === (t.dataset.edit || t.dataset.del || t.dataset.label));
       if (t.dataset.edit) productForm(p, async () => { products = await api.get('/products'); draw(); });
       if (t.dataset.label) printLabel(p);
@@ -302,6 +513,94 @@
     });
   }
 
+  // ---------- Importar / exportar productos (Excel ↔ CSV) y fotos en lote ----------
+  const COLS = [['name', 'Nombre'], ['brand', 'Marca'], ['category', 'Categoría'], ['price', 'Precio'], ['offerPrice', 'Precio oferta'], ['cost', 'Costo'], ['stock', 'Existencia'],
+    ['barcode', 'Código de barras'], ['sku', 'SKU'], ['ml', 'ml'], ['minStock', 'Stock mínimo'], ['family', 'Familia olfativa'], ['description', 'Descripción']];
+  const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  function parseCsv(text) {
+    text = text.replace(/^﻿/, '');
+    const first = text.split(/\r?\n/)[0] || '';
+    const sep = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : (first.includes('\t') ? '\t' : ',');
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; continue; }
+      if (ch === '"') q = true;
+      else if (ch === sep) { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += ch;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter(r => r.some(c => String(c).trim()));
+  }
+  function importExport(products, onDone) {
+    modal({
+      title: 'Importar / exportar productos', wide: true,
+      body: `<div class="grid-2" style="gap:20px">
+        <div><h3 class="serif" style="font-weight:500;margin:0 0 6px">Exportar a Excel</h3>
+          <p class="muted small" style="margin-top:0">Descarga todos los perfumes en un archivo CSV que abre Excel. Puedes capturar ahí precios, costos y códigos y volver a importarlo.</p>
+          <button class="btn primary" id="ieExp">Descargar productos (.csv)</button></div>
+        <div><h3 class="serif" style="font-weight:500;margin:0 0 6px">Importar desde Excel</h3>
+          <p class="muted small" style="margin-top:0">En Excel usa <b>Guardar como → CSV</b>. Se actualizan los perfumes que coincidan por código, SKU o nombre, y se crean los nuevos. Columnas: ${COLS.map(c => c[1]).join(', ')}.</p>
+          <label class="btn">Elegir archivo .csv<input type="file" accept=".csv,text/csv,.txt" hidden id="ieFile"></label> <button class="btn sm" id="ieTpl">Plantilla vacía</button>
+          <div id="iePrev" class="small" style="margin-top:10px"></div></div>
+      </div>
+      <hr class="sep">
+      <h3 class="serif" style="font-weight:500;margin:0 0 6px">Fotos en lote</h3>
+      <p class="muted small" style="margin-top:0">Selecciona varias fotos a la vez. Si el archivo se llama como el perfume (ej. <code>Khamrah Qahwa.jpg</code>), se asigna solo; si no, eliges el perfume en la lista.</p>
+      <label class="btn">Elegir fotos…<input type="file" accept="image/*" multiple hidden id="ieImgs"></label>
+      <div id="ieImgList" style="margin-top:10px"></div>`,
+      onMount: (el, m) => {
+        const toRows = list => [COLS.map(c => c[1])].concat(list.map(p => COLS.map(([k]) => p[k] ?? '')));
+        $('#ieExp', el).onclick = () => downloadCsv(`productos-${localDay(new Date())}.csv`, toRows(products));
+        $('#ieTpl', el).onclick = () => downloadCsv('plantilla-productos.csv', [COLS.map(c => c[1])]);
+        let rows = null;
+        $('#ieFile', el).onchange = async e => {
+          const f = e.target.files[0]; if (!f) return;
+          const data = parseCsv(await f.text());
+          if (data.length < 2) { $('#iePrev', el).innerHTML = '<span style="color:var(--bad)">El archivo no tiene filas.</span>'; return; }
+          const head = data[0].map(normTxt);
+          const map = COLS.map(([k, label]) => [k, head.indexOf(normTxt(label)) >= 0 ? head.indexOf(normTxt(label)) : head.indexOf(normTxt(k))]);
+          if (!map.some(([k, i]) => k === 'name' && i >= 0) && !map.some(([k, i]) => k === 'barcode' && i >= 0)) { $('#iePrev', el).innerHTML = '<span style="color:var(--bad)">No encontré la columna “Nombre” ni “Código de barras”.</span>'; return; }
+          rows = data.slice(1).map(r => Object.fromEntries(map.filter(([, i]) => i >= 0).map(([k, i]) => [k, (r[i] ?? '').trim()])));
+          const cols = map.filter(([, i]) => i >= 0).map(([k]) => COLS.find(c => c[0] === k)[1]);
+          $('#iePrev', el).innerHTML = `<b>${rows.length}</b> filas · columnas: ${esc(cols.join(', '))}<br><button class="btn primary sm" id="ieGo" style="margin-top:8px">Importar ${rows.length} filas</button>`;
+          $('#ieGo', el).onclick = async () => {
+            try {
+              const r = await api.post('/products/import', { rows });
+              $('#iePrev', el).innerHTML = `<span class="gold">✓ ${r.created} creados · ${r.updated} actualizados${r.skipped ? ` · ${r.skipped} omitidos` : ''}</span>${r.errors.length ? `<br><span style="color:var(--warn)">${r.errors.slice(0, 8).map(esc).join('<br>')}${r.errors.length > 8 ? '<br>…' : ''}</span>` : ''}`;
+              toast('Importación terminada'); await onDone();
+            } catch (err) { toast(err.message, 'err'); }
+          };
+        };
+        // Fotos en lote
+        $('#ieImgs', el).onchange = e => {
+          const files = [...e.target.files]; if (!files.length) return;
+          const best = name => {
+            const n = normTxt(name.replace(/\.[^.]+$/, ''));
+            return products.find(p => normTxt(p.name) === n) || products.find(p => normTxt(`${p.brand} ${p.name}`) === n)
+              || products.filter(p => n.includes(normTxt(p.name)) && normTxt(p.name).length > 3).sort((a, b) => b.name.length - a.name.length)[0] || null;
+          };
+          const opts = sel => `<option value="">— elegir perfume —</option>` + products.slice().sort((a, b) => a.name.localeCompare(b.name)).map(p => `<option value="${p.id}" ${sel === p.id ? 'selected' : ''}>${esc(p.name)}${p.image ? ' · (ya tiene foto)' : ''}</option>`).join('');
+          $('#ieImgList', el).innerHTML = `<table class="t">${files.map((f, i) => `<tr><td class="small">${esc(f.name)}</td><td><select class="input" data-fi="${i}">${opts(best(f.name)?.id)}</select></td><td class="small" data-st="${i}"></td></tr>`).join('')}</table>
+            <button class="btn primary" id="ieImgGo" style="margin-top:10px">Subir y asignar fotos</button>`;
+          $('#ieImgGo', el).onclick = async () => {
+            let okN = 0;
+            for (const [i, f] of files.entries()) {
+              const pid = $(`[data-fi="${i}"]`, el).value, st = $(`[data-st="${i}"]`, el);
+              if (!pid) { st.textContent = 'omitida'; continue; }
+              st.textContent = 'subiendo…';
+              try { const url = await api.uploadImage(f, 1000); await api.put('/products/' + pid, { image: url, imageCredit: '' }); st.innerHTML = '<span class="gold">✓</span>'; okN++; }
+              catch (err) { st.innerHTML = `<span style="color:var(--bad)">${esc(err.message)}</span>`; }
+            }
+            toast(`${okN} fotos asignadas`); await onDone();
+          };
+        };
+      },
+      actions: [{ label: 'Cerrar' }],
+    });
+  }
+
   function barcodeSvg(code, opts = {}) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     const fmt_ = /^\d{13}$/.test(code) ? 'EAN13' : /^\d{8}$/.test(code) ? 'EAN8' : 'CODE128';
@@ -310,11 +609,12 @@
     return svg.outerHTML;
   }
 
-  function printWindow(title, html, css = '') {
+  function printWindow(title, html, css = '', withCardCss = false) {
     const w = window.open('', '_blank', 'width=480,height=640');
     if (!w) return toast('Permite ventanas emergentes para imprimir', 'err');
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><base href="${location.origin}/">
       <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500&family=Montserrat:wght@400;500&display=swap" rel="stylesheet">
+      ${withCardCss ? '<link rel="stylesheet" href="/css/card.css">' : ''}
       <style>body{margin:0;padding:16px;font-family:Montserrat,sans-serif;display:flex;flex-wrap:wrap;gap:12px;justify-content:center}${css}
       @media print{body{padding:0}}</style></head><body>${html}<script>setTimeout(()=>{window.print()},600)<\/script></body></html>`);
     w.document.close();
@@ -372,6 +672,16 @@
   };
 
   // ---------- Lealtad ----------
+  // Dibuja un emoji a color en un PNG de 160 px (los Wallet no tienen fuentes de emoji)
+  async function emojiPng(emoji) {
+    const c = document.createElement('canvas'); c.width = c.height = 160;
+    const g = c.getContext('2d');
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = "128px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
+    g.fillText(emoji, 80, 88);
+    const r = await api.post('/upload', { dataUrl: c.toDataURL('image/png') });
+    return r.url;
+  }
   const isStamps = () => S.loyalty.mode === 'stamps';
   const balanceOf = c => isStamps() ? `${c.stamps}/${S.loyalty.stamps.goal} sellos` : fmt.money(c.cashback);
   const histAmount = h => h.kind === 'stamps' ? `${h.amount > 0 ? '+' : ''}${h.amount} sello${Math.abs(h.amount) === 1 ? '' : 's'}` : `${h.amount > 0 ? '+' : '−'}${fmt.money(Math.abs(h.amount))}`;
@@ -390,6 +700,8 @@
         <input class="input" id="cq" type="search" placeholder="Buscar por nombre, teléfono o tarjeta…">
         <button class="btn" id="cScan">⌁ Escanear tarjeta</button>
         <button class="btn" id="cRules">Configurar programa</button>
+        <button class="btn" id="cDesign">🎨 Diseño de tarjeta</button>
+        <button class="btn" id="cSignup">QR de inscripción</button>
         <button class="btn primary" id="cNew">+ Nueva tarjeta</button>
       </div>
       <div class="kpis">
@@ -398,7 +710,7 @@
         ${isStamps()
           ? `<div class="card kpi"><div class="label">Listos para canjear</div><div class="value num gold">${ready}</div><div class="sub">${esc(L.stamps.rewardText)}</div></div>`
           : `<div class="card kpi"><div class="label">Saldo en monederos</div><div class="value num gold">${fmt.money(totalCash)}</div><div class="sub">Pasivo pendiente de canjear</div></div>`}
-        <div class="card kpi"><div class="label">Apple Wallet</div><div class="value" style="font-size:20px">${S.walletStatus ? 'Activo' : 'Sin certificado'}</div><div class="sub">${S.walletStatus ? esc(S.walletStatus.passTypeId) : 'Se configura en Configuración'}</div></div>
+        <div class="card kpi"><div class="label">Wallet</div><div class="value" style="font-size:18px">Apple ${S.walletStatus ? '<span class="badge ok">activo</span>' : '<span class="badge warn">pendiente</span>'}<br>Google ${S.gwalletStatus?.ready ? '<span class="badge ok">activo</span>' : '<span class="badge warn">pendiente</span>'}</div><div class="sub">Se configuran en Configuración</div></div>
       </div>
       <div class="table-wrap"><table class="t"><thead><tr><th>Tarjeta</th><th>Cliente</th><th>Teléfono</th><th>Nivel</th><th class="r">${isStamps() ? 'Sellos' : 'Saldo'}</th><th class="r">Compras</th><th></th></tr></thead><tbody id="ct"></tbody></table></div>`;
     const draw = () => {
@@ -420,6 +732,8 @@
       try { customerDetail(await api.get('/customers/card/' + encodeURIComponent(code)), reload); } catch { toast('Tarjeta no encontrada: ' + code, 'err'); }
     };
     $('#cRules').onclick = () => programForm();
+    $('#cDesign').onclick = () => cardDesigner();
+    $('#cSignup').onclick = () => signupQr();
     $('#ct').onclick = async e => {
       const b = e.target.closest('button'); if (!b) return;
       const c = customers.find(x => x.id === (b.dataset.card || b.dataset.adj || b.dataset.edit || b.dataset.del));
@@ -433,7 +747,12 @@
   function programForm() {
     const L = S.loyalty;
     const draft = JSON.parse(JSON.stringify(L));
-    const iconPick = () => Object.entries(Stamps.ICONS).map(([k, v]) => `<button type="button" class="icon-opt ${draft.stamps.icon === k ? 'on' : ''}" data-icon="${k}" title="${v.label}">${Stamps.icon(k, S.colors.gold, S.colors.bg, 30)}<span>${v.label}</span></button>`).join('');
+    const accent = () => L.card?.accent || S.colors.gold;
+    const iconPick = () => Object.entries(Stamps.ICONS).map(([k, v]) => `<button type="button" class="icon-opt ${draft.stamps.icon === k ? 'on' : ''}" data-icon="${k}" title="${v.label}">${Stamps.icon(k, accent(), S.colors.bg, 30)}<span>${v.label}</span></button>`).join('')
+      + `<button type="button" class="icon-opt ${draft.stamps.icon === 'emoji' ? 'on' : ''}" data-icon="emoji" title="Emoji"><span style="font-size:26px;line-height:30px">${esc(draft.stamps.emoji || '🌸')}</span><span>Emoji</span></button>`
+      + `<button type="button" class="icon-opt ${draft.stamps.icon === 'image' ? 'on' : ''}" data-icon="image" title="Imagen propia">${draft.stamps.iconImage && draft.stamps.icon === 'image' ? `<img src="${esc(draft.stamps.iconImage)}" alt="" style="width:30px;height:30px;object-fit:contain">` : '<span style="font-size:24px;line-height:30px">🖼</span>'}<span>Imagen</span></button>`;
+    const emojiPick = () => `<div class="emoji-pick">${Stamps.EMOJIS.map(e => `<button type="button" data-emoji="${e}" class="${draft.stamps.emoji === e ? 'on' : ''}">${e}</button>`).join('')}
+      <input class="input" id="emojiOwn" maxlength="8" placeholder="Otro: 🫧" value="${Stamps.EMOJIS.includes(draft.stamps.emoji) ? '' : esc(draft.stamps.emoji || '')}" style="width:110px;text-align:center;font-size:18px"></div>`;
     modal({
       title: 'Programa de lealtad', wide: true,
       body: `<form class="form-grid" id="lf" onsubmit="return false">
@@ -462,6 +781,8 @@
           <label class="field"><span>Valor del premio en caja ($ de descuento)</span><input class="input" name="stamps.rewardValue" data-num type="number" min="0" value="${esc(L.stamps.rewardValue)}"></label>
           <label class="field"><span>Sellos de bienvenida</span><input class="input" name="stamps.welcome" data-num type="number" min="0" value="${esc(L.stamps.welcome)}"></label>
           <div class="field full"><span>Ícono del sello</span><div class="icon-pick" id="iconPick">${iconPick()}</div></div>
+          <div class="field full hidden" id="emojiBox"><span>Elige el emoji (o escribe el tuyo)</span>${emojiPick()}</div>
+          <div class="field full hidden" id="imgBox"><span>Imagen propia del sello (PNG sin fondo, cuadrada)</span><label class="btn sm" style="align-self:flex-start">Subir imagen…<input type="file" accept="image/png,image/webp,image/jpeg" hidden id="stampImg"></label></div>
           <div class="full stamp-preview" id="stampPrev"></div>
         </div>
         <div class="field full"><span>Niveles (nombre : compra acumulada mínima)</span><textarea class="input" id="tiers" style="min-height:70px">${esc((L.tiers || []).map(t => `${t.name}: ${t.min}`).join('\n'))}</textarea></div>
@@ -471,16 +792,36 @@
           $('.mode-cashback', el).classList.toggle('hidden', draft.mode !== 'cashback');
           $('.mode-stamps', el).classList.toggle('hidden', draft.mode !== 'stamps');
           const goal = Math.min(20, Math.max(1, Number($('[name="stamps.goal"]', el).value) || 8));
-          $('#stampPrev', el).innerHTML = `<span class="muted small">Vista previa (cliente con ${Math.ceil(goal / 2)} sellos)</span>` + Stamps.grid(Math.ceil(goal / 2), goal, draft.stamps.icon, { gold: S.colors.gold, bg: S.colors.surface, width: 420, height: goal > 6 ? 110 : 64, transparent: true });
+          $('#emojiBox', el).classList.toggle('hidden', draft.stamps.icon !== 'emoji');
+          $('#imgBox', el).classList.toggle('hidden', draft.stamps.icon !== 'image');
+          const card = L.card || {};
+          $('#stampPrev', el).innerHTML = `<span class="muted small">Vista previa (cliente con ${Math.ceil(goal / 2)} sellos)</span><div style="background:${esc(card.bg || '#0b0a08')};border-radius:12px;padding:6px">`
+            + Stamps.grid(Math.ceil(goal / 2), goal, Stamps.spec(draft.stamps), { gold: accent(), bg: card.bg || S.colors.bg, width: 420, height: goal > 6 ? 110 : 64, transparent: true }) + '</div>';
         };
         $$('.mode-pick button', el).forEach(b => b.onclick = () => { draft.mode = b.dataset.mode; $$('.mode-pick button', el).forEach(x => x.classList.toggle('on', x === b)); sync(); });
-        $('#iconPick', el).onclick = e => { const b = e.target.closest('[data-icon]'); if (!b) return; draft.stamps.icon = b.dataset.icon; $('#iconPick', el).innerHTML = iconPick(); sync(); };
+        $('#iconPick', el).onclick = e => {
+          const b = e.target.closest('[data-icon]'); if (!b) return;
+          draft.stamps.icon = b.dataset.icon;
+          if (b.dataset.icon === 'emoji' && !draft.stamps.emoji) draft.stamps.emoji = '🌸';
+          $('#iconPick', el).innerHTML = iconPick(); sync();
+          if (b.dataset.icon === 'image' && !draft.stamps.iconImage) $('#stampImg', el).click();
+        };
+        $('#emojiBox', el).onclick = e => { const b = e.target.closest('[data-emoji]'); if (!b) return; draft.stamps.emoji = b.dataset.emoji; draft.stamps.iconImage = ''; $('#emojiOwn', el).value = ''; $$('[data-emoji]', el).forEach(x => x.classList.toggle('on', x === b)); $('#iconPick', el).innerHTML = iconPick(); sync(); };
+        $('#emojiBox', el).oninput = e => { if (e.target.id !== 'emojiOwn') return; const v = e.target.value.trim(); if (!v) return; draft.stamps.emoji = v; draft.stamps.iconImage = ''; $$('[data-emoji]', el).forEach(x => x.classList.remove('on')); $('#iconPick', el).innerHTML = iconPick(); sync(); };
+        $('#stampImg', el).onchange = async e => {
+          const f = e.target.files[0]; if (!f) return;
+          try { draft.stamps.iconImage = await api.uploadImage(f, 256); draft.stamps.icon = 'image'; $('#iconPick', el).innerHTML = iconPick(); sync(); toast('Imagen del sello lista'); }
+          catch (err) { toast(err.message, 'err'); }
+        };
         $('[name="stamps.goal"]', el).oninput = sync;
         sync();
       },
       actions: [{ label: 'Cancelar' }, { label: 'Guardar programa', cls: 'primary', onClick: async m => {
         const d = formData($('#lf', m.el));
-        d.mode = draft.mode; d.stamps.icon = draft.stamps.icon;
+        d.mode = draft.mode; d.stamps.icon = draft.stamps.icon; d.stamps.emoji = draft.stamps.emoji; d.stamps.iconImage = draft.stamps.iconImage || '';
+        if (d.stamps.icon === 'image' && !d.stamps.iconImage) throw new Error('Sube la imagen del sello');
+        // El emoji se dibuja aquí (a color) y se guarda como PNG para Apple y Google Wallet
+        if (d.stamps.icon === 'emoji' && (!d.stamps.iconImage || draft.stamps.emoji !== L.stamps.emoji || L.stamps.icon !== 'emoji')) d.stamps.iconImage = await emojiPng(d.stamps.emoji);
         d.tiers = $('#tiers', m.el).value.split('\n').map(l => l.split(':')).filter(x => x[0].trim()).map(([n, v]) => ({ name: n.trim(), min: Number(v) || 0 }));
         if (d.mode !== L.mode && !await confirmBox('Cambiar tipo de tarjeta', 'Los saldos actuales se conservan, pero los clientes verán y acumularán con el nuevo tipo de tarjeta. Las tarjetas en Apple Wallet se actualizan solas.', 'Cambiar', 'primary')) return false;
         S = await api.put('/settings', { loyalty: d }); toast('Programa guardado'); Views.loyalty();
@@ -528,14 +869,90 @@
     });
   }
 
-  function cardHtml(c) {
+  // Datos del programa en el formato que usa LoyaltyCard
+  const loView = (Lo = S.loyalty) => ({ programName: Lo.programName, mode: Lo.mode, goal: Lo.stamps.goal, percent: Lo.cashback.percent, stampIcon: Stamps.spec(Lo.stamps), card: Lo.card });
+  const cardHtml = c => LoyaltyCard.html(c, loView(), { logoIcon: S.logoIcon });
+
+  // ---------- Diseño de la tarjeta ----------
+  function cardDesigner() {
     const L = S.loyalty;
-    return `<div class="loyal-card">
-      <div class="top"><div><div class="eyebrow">${esc(L.programName)}</div><div class="serif" style="font-size:20px">${esc(c.name)}</div></div><img src="${esc(S.logoIcon || '/assets/logo-icon.jpg')}" alt=""></div>
-      ${isStamps() ? `<div class="lc-st">${Stamps.grid(Math.min(c.stamps, L.stamps.goal), L.stamps.goal, L.stamps.icon, { gold: S.colors.gold, bg: '#0b0a08', width: 300, height: L.stamps.goal > 6 ? 76 : 44, transparent: true })}</div>`
-        : `<div class="lc-bal"><small>SALDO</small> ${fmt.money(c.cashback)}</div>`}
-      ${barcodeSvg(c.cardNumber, { height: 30, fontSize: 11, margin: 4 })}
-    </div>`;
+    const d = { ...LoyaltyCard.DEF, ...(L.card || {}) };
+    const PRE = [
+      { n: 'Negro y oro', bg: '#0b0a08', text: '#efe8da', accent: '#c9a75e' },
+      { n: 'Marfil', bg: '#f4efe6', text: '#1b1712', accent: '#9c7a3c' },
+      { n: 'Rosa', bg: '#f7dfe3', text: '#3b1d24', accent: '#b4536a' },
+      { n: 'Borgoña', bg: '#2a0d14', text: '#f6e7e2', accent: '#e0b07a' },
+      { n: 'Esmeralda', bg: '#0b241d', text: '#e8f1ec', accent: '#d4b26a' },
+      { n: 'Azul noche', bg: '#0d1730', text: '#e7ecf7', accent: '#c7a35e' },
+      { n: 'Lila', bg: '#e9e1f5', text: '#2b2140', accent: '#7b5cb8' },
+    ];
+    const sample = { name: 'María Fernanda', cardNumber: 'PP100245', cashback: 386.5, stamps: Math.ceil(L.stamps.goal * 0.6), tier: 'Oro' };
+    modal({
+      title: 'Diseño de la tarjeta de lealtad', wide: true,
+      body: `<div class="designer">
+        <div class="ds-controls">
+          <div class="field"><span>Estilos rápidos</span><div class="swatches" id="dsPre">${PRE.map((p, i) => `<button type="button" class="swatch" data-i="${i}"><i style="background:linear-gradient(135deg,${p.bg} 55%,${p.accent} 55%)"></i>${p.n}</button>`).join('')}</div></div>
+          <div class="color-row" style="margin-top:12px">
+            <label class="field"><span>Fondo</span><input type="color" data-c="bg" value="${esc(d.bg)}"></label>
+            <label class="field"><span>Texto</span><input type="color" data-c="text" value="${esc(d.text)}"></label>
+            <label class="field"><span>Acento / sellos</span><input type="color" data-c="accent" value="${esc(d.accent)}"></label>
+          </div>
+          <div class="field" style="margin-top:12px"><span>Imagen de fondo (opcional)</span>
+            <div class="toolbar"><label class="btn sm">Subir imagen…<input type="file" accept="image/*" hidden id="dsImg"></label><button type="button" class="btn sm ${d.bgImage ? '' : 'hidden'}" id="dsImgX">Quitar imagen</button></div>
+            <small class="muted">Se oscurece con el color de fondo para que se lea el texto. En Apple Wallet aparece en la franja de sellos/saldo.</small></div>
+          <div class="field" style="margin-top:12px"><span>Código para caja</span><div class="seg" id="dsCode"><button type="button" data-v="qr" class="${d.codeType === 'qr' ? 'on' : ''}">Código QR</button><button type="button" data-v="code128" class="${d.codeType === 'code128' ? 'on' : ''}">Código de barras</button></div>
+            <small class="muted">El QR se lee mejor con la cámara del punto de venta.</small></div>
+          <p class="muted small">El tipo de tarjeta (cashback o sellos) y el emoji de los sellos se cambian en <b>Configurar programa</b>.</p>
+        </div>
+        <div class="ds-preview" id="dsPrev"></div>
+      </div>`,
+      onMount: el => {
+        const draw = () => {
+          const lo = { ...loView(), card: d };
+          $('#dsPrev', el).innerHTML = `<div class="ds-tabs"><span class="muted small">Tarjeta digital</span></div>${LoyaltyCard.html(sample, lo, { logoIcon: S.logoIcon, hello: true })}
+            <div class="ds-wallets"><div>${LoyaltyCard.appleMock(sample, lo, { storeName: S.storeName, logo: S.logo })}</div><div>${LoyaltyCard.googleMock(sample, lo, { storeName: S.storeName, logoIcon: S.logoIcon })}</div></div>
+            <p class="muted small">Vista aproximada. Cada Wallet acomoda los textos a su manera.</p>`;
+          $('#dsImgX', el).classList.toggle('hidden', !d.bgImage);
+        };
+        $('#dsPre', el).onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; const p = PRE[b.dataset.i]; Object.assign(d, { bg: p.bg, text: p.text, accent: p.accent }); $$('[data-c]', el).forEach(i => { i.value = d[i.dataset.c]; }); draw(); };
+        $$('[data-c]', el).forEach(i => i.oninput = () => { d[i.dataset.c] = i.value; draw(); });
+        $('#dsCode', el).onclick = e => { const b = e.target.closest('button'); if (!b) return; d.codeType = b.dataset.v; $$('#dsCode button', el).forEach(x => x.classList.toggle('on', x === b)); draw(); };
+        $('#dsImg', el).onchange = async e => { const f = e.target.files[0]; if (!f) return; try { d.bgImage = await api.uploadImage(f, 1200); draw(); } catch (err) { toast(err.message, 'err'); } };
+        $('#dsImgX', el).onclick = () => { d.bgImage = ''; draw(); };
+        draw();
+      },
+      actions: [{ label: 'Cancelar' }, { label: 'Guardar diseño', cls: 'primary', onClick: async () => {
+        S = await api.put('/settings', { loyalty: { card: d } }); toast('Diseño guardado. Las tarjetas en Wallet se actualizan solas.'); Views.loyalty();
+      } }],
+    });
+  }
+
+  // ---------- QR de inscripción (los clientes se registran solos) ----------
+  async function signupQr() {
+    const info = await getServerInfo().catch(() => ({ cardBase: location.origin }));
+    const link = `${info.cardBase}/club`;
+    const local = /^https:\/\/(\d+\.){3}\d+|localhost/.test(info.cardBase);
+    const su = S.loyalty.signup || {};
+    modal({
+      title: 'QR de inscripción al club', wide: true,
+      body: `<div class="cd-grid">
+        <div class="cd-left" style="text-align:center"><div class="cd-qr" style="display:inline-block">${ui.qrSvg(link, { size: 220 })}</div>
+          <div class="input-group" style="margin-top:10px"><input class="input small" value="${esc(link)}" readonly><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Abrir ↗</a></div></div>
+        <div class="cd-right">
+          <p class="muted" style="margin-top:0">Pon este QR en el mostrador o compártelo en redes. El cliente lo escanea, escribe su nombre y teléfono y recibe su tarjeta al instante, lista para guardar en Apple Wallet o Google Wallet.</p>
+          <label class="check"><input type="checkbox" id="suOn" ${su.enabled ? 'checked' : ''}> Permitir registro desde el QR</label><br>
+          <label class="check"><input type="checkbox" id="suW" ${su.welcome ? 'checked' : ''}> Dar el regalo de bienvenida también a quien se registra solo</label>
+          <p class="muted small">Si lo dejas apagado, el regalo de bienvenida solo se da a las tarjetas creadas en caja (evita registros falsos para obtener el regalo).</p>
+          ${local ? `<p class="small" style="color:var(--warn)">Ahora el QR solo funciona conectado al WiFi de la tienda. Con una URL pública (Configuración → Apple Wallet) funciona desde cualquier lugar.</p>` : ''}
+        </div></div>`,
+      actions: [{ label: 'Cerrar' }, { label: 'Imprimir cartel', onClick: () => {
+        printWindow('QR ' + S.loyalty.programName, `<div class="poster"><img src="${esc(S.logo)}" alt=""><h1>${esc(S.loyalty.programName)}</h1><p>${S.loyalty.mode === 'stamps' ? `Junta ${S.loyalty.stamps.goal} sellos y gana ${esc(S.loyalty.stamps.rewardText)}` : `${S.loyalty.cashback.percent}% de regreso en cada compra`}</p>${ui.qrSvg(link, { size: 300 })}<h2>Escanea y obtén tu tarjeta</h2><small>Guárdala en Apple Wallet o Google Wallet</small></div>`,
+          `.poster{width:150mm;text-align:center;padding:12mm;border:1px solid #ddd;border-radius:6mm}.poster img{max-width:80mm;max-height:30mm;object-fit:contain}.poster h1{font-family:'Bodoni Moda',serif;font-weight:500;font-size:34px;margin:10px 0 4px}.poster h2{font-family:'Bodoni Moda',serif;font-weight:500;margin:10px 0 2px}.poster p{margin:0 0 14px}`);
+        return false;
+      } }, { label: 'Guardar', cls: 'primary', onClick: async m => {
+        S = await api.put('/settings', { loyalty: { signup: { enabled: $('#suOn', m.el).checked, welcome: $('#suW', m.el).checked } } }); toast('Registro por QR actualizado');
+      } }],
+    });
   }
   async function customerDetail(c, onChange) {
     const info = await getServerInfo().catch(() => ({ cardBase: location.origin }));
@@ -560,18 +977,28 @@
             <a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Abrir tarjeta ↗</a>
             ${c.phone ? `<a class="btn" href="${esc(waHref)}" target="_blank" rel="noopener">Enviar por WhatsApp</a>` : ''}
             ${S.walletStatus ? `<a class="btn" href="/api/public/wallet/${esc(c.token)}/pass">Descargar .pkpass</a>` : ''}
+            ${S.gwalletStatus?.ready ? `<a class="btn" href="/api/public/wallet/${esc(c.token)}/google" target="_blank" rel="noopener">Google Wallet ↗</a>` : ''}
+            <button type="button" class="btn" id="cdQrPng">Descargar QR</button>
           </div>
+          ${c.gwallet ? '<p class="muted small" style="margin:8px 0 0">✓ La guardó en Google Wallet</p>' : ''}
+          ${c.source === 'qr' ? '<p class="muted small" style="margin:4px 0 0">Se registró solo desde el QR de la tienda</p>' : ''}
         </div>
       </div>
       <h3 class="serif" style="font-weight:500;margin:18px 0 8px">Historial</h3>
       <table class="t">${(c.history || []).slice(0, 20).map(h => `<tr><td class="small muted">${fmt.day(h.date)}</td><td class="small">${esc(h.note)}${h.user ? ` <span class="muted">· ${esc(h.user)}</span>` : ''}</td><td class="r num ${h.amount < 0 ? '' : 'gold'}">${histAmount(h)}</td></tr>`).join('') || '<tr><td class="empty-row">Sin movimientos</td></tr>'}</table>`,
       onMount: el => {
         $('#cdCopy', el).onclick = async () => { try { await navigator.clipboard.writeText(link); toast('Enlace copiado'); } catch { $('#cdLink', el).select(); document.execCommand('copy'); toast('Enlace copiado'); } };
+        // QR de la tarjeta (número de tarjeta) como imagen PNG, para imprimir o mandar
+        $('#cdQrPng', el).onclick = () => {
+          const img = new Image();
+          img.onload = () => { const cv = document.createElement('canvas'); cv.width = cv.height = 600; const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 600, 600); g.drawImage(img, 0, 0, 600, 600); const a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = `QR-${c.cardNumber}.png`; a.click(); };
+          img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(ui.qrSvg(c.cardNumber, { size: 600 }));
+        };
       },
       actions: [{ label: 'Cerrar' }, { label: 'Imprimir tarjeta', cls: 'primary', onClick: () => {
-        printWindow('Tarjeta ' + c.name, cardHtml(c) + `<div class="qr">${ui.qrSvg(link, { size: 120 })}<span>Escanea para ver tu tarjeta digital</span></div>`, `.loyal-card{width:85.6mm;height:54mm;border-radius:4mm;padding:4mm;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;background:#0b0a08;color:#efe8da;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-family:Montserrat}
-          .eyebrow{font-size:8px;letter-spacing:.3em;text-transform:uppercase;color:#c9a75e}.serif{font-family:'Bodoni Moda',serif}.top{display:flex;justify-content:space-between;align-items:center}.top img{width:38px;border-radius:50%}.loyal-card>svg{background:#fff;border-radius:4px;width:100%;height:13mm}.lc-st svg{width:100%;height:auto}.lc-bal{font-size:18px;font-weight:600;color:#c9a75e}.lc-bal small{font-size:8px;letter-spacing:.2em;color:#efe8da}
-          .qr{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;width:85.6mm}`);
+        const code = (S.loyalty.card?.codeType === 'code128') ? barcodeSvg(c.cardNumber, { height: 40, fontSize: 11, margin: 4 }) : ui.qrSvg(c.cardNumber, { size: 110 });
+        printWindow('Tarjeta ' + c.name, `<div class="print-card">${cardHtml(c)}</div><div class="qr">${code}<span>${esc(c.cardNumber)} · muestra este código en caja</span></div><div class="qr">${ui.qrSvg(link, { size: 110 })}<span>Escanea para ver tu tarjeta digital</span></div>`,
+          `.print-card{width:85.6mm}.print-card .lcard{border-radius:4mm;padding:4mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}.qr{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;width:60mm}`, true);
         return false;
       } }],
     });
@@ -778,6 +1205,7 @@
             <span></span>
             <label class="field full"><span>Encabezado del ticket</span><input class="input" name="ticket.header" value="${esc(S.ticket?.header)}"></label>
             <label class="field full"><span>Pie del ticket</span><input class="input" name="ticket.footer" value="${esc(S.ticket?.footer)}"></label>
+            <label class="check full"><input type="checkbox" name="pos.requireCash" ${S.pos?.requireCash ? 'checked' : ''}> Pedir abrir caja (con fondo inicial) antes de vender</label>
           </form>
           <div class="modal-actions"><button class="btn primary" id="gSave">Guardar</button></div>
         </div>
@@ -823,7 +1251,53 @@
             </div>
           </form>
         </div>
+      </div>
+      <div class="card"><h3>Google Wallet</h3>
+        ${(() => { const g = S.gwalletStatus || {}; return g.ready
+          ? `<p><span class="badge ok">Activo</span> Emisor <span class="num">${esc(g.issuerId)}</span> · ${esc(g.email)}</p>`
+          : `<p><span class="badge warn">${g.configured ? 'Falta la URL pública' : 'Sin configurar'}</span> ${g.configured ? 'Google Wallet necesita que la tienda tenga una URL pública con HTTPS (se escribe arriba, en Apple Wallet).' : 'Los clientes con Android podrán guardar su tarjeta en Google Wallet.'}</p>`; })()}
+        <div class="grid-2" style="gap:24px">
+          <div>
+            <p class="muted small" style="margin-top:0">Es gratis. Necesitas una cuenta de Google:</p>
+            <ol class="muted small steps">
+              <li>Entra a <b>pay.google.com/business/console</b> → <b>Google Wallet API</b> y crea tu cuenta de emisor. Copia el <b>Issuer ID</b> (número).</li>
+              <li>En <b>console.cloud.google.com</b>, en el proyecto <b>${esc(S.firebase?.projectId || 'de tu tienda')}</b>, activa la <b>Google Wallet API</b>.</li>
+              <li>Usa la misma llave de Firebase (cuenta de servicio) o crea otra en <b>IAM → Cuentas de servicio</b>.</li>
+              <li>En la consola de Google Pay → <b>Usuarios</b>, invita el correo de esa cuenta de servicio como <b>Desarrollador</b>.</li>
+              <li>Escribe aquí el Issuer ID y conecta. Mientras Google revisa tu cuenta, solo tú (y los correos de prueba) pueden guardar la tarjeta.</li>
+            </ol>
+          </div>
+          <form class="form-grid" id="gwf" onsubmit="return false">
+            <label class="field full"><span>Issuer ID</span><input class="input num" id="gwIssuer" value="${esc(S.googleWallet?.issuerId || '')}" placeholder="3388000000012345678" inputmode="numeric"></label>
+            ${api.user.role === 'admin' ? `<div class="field full"><span>Llave de la cuenta de servicio</span>
+              <div class="toolbar">${S.storage?.hasKey ? '<label class="check"><input type="checkbox" id="gwUseFb" checked> Usar la llave de Firebase</label>' : ''}<label class="btn sm">Subir otra llave .json<input type="file" accept=".json,application/json" hidden id="gwKey"></label><span class="muted small" id="gwKeyName">${S.gwalletStatus?.hasKey ? 'Llave guardada · ' + esc(S.gwalletStatus.email) : ''}</span></div></div>
+            <div class="full toolbar"><button class="btn primary" id="gwSave">Guardar Google Wallet</button>${S.gwalletStatus?.hasKey ? '<button class="btn danger" id="gwDel">Quitar</button>' : ''}</div>`
+            : '<p class="small full">Pide a un administrador que configure Google Wallet.</p>'}
+          </form>
+        </div>
       </div>`;
+    let gwKeyText = null;
+    const gwKey = $('#gwKey');
+    if (gwKey) gwKey.onchange = async () => {
+      const f = gwKey.files[0]; if (!f) return;
+      gwKeyText = await f.text();
+      try { const k = JSON.parse(gwKeyText); if (k.type !== 'service_account') throw 0; $('#gwKeyName').textContent = `${f.name} · ${k.client_email}`; const fb = $('#gwUseFb'); if (fb) fb.checked = false; }
+      catch { gwKeyText = null; toast('Ese archivo no es una llave de cuenta de servicio', 'err'); }
+    };
+    const gwSave = $('#gwSave');
+    if (gwSave) gwSave.onclick = async () => {
+      try {
+        const issuerId = $('#gwIssuer').value.trim();
+        if (!/^\d{6,}$/.test(issuerId)) throw new Error('Escribe el Issuer ID (solo números)');
+        const useFb = $('#gwUseFb')?.checked;
+        if (gwKeyText || useFb) await api.post('/gwallet/key', { issuerId, key: gwKeyText, useFirebaseKey: !gwKeyText && useFb });
+        else if (!S.gwalletStatus?.hasKey) throw new Error('Sube la llave de la cuenta de servicio');
+        S = await api.put('/settings', { googleWallet: { issuerId } });
+        toast(S.gwalletStatus.ready ? 'Google Wallet activado' : 'Guardado. Falta la URL pública para activarlo.'); Views.settings();
+      } catch (e) { toast(e.message, 'err'); }
+    };
+    const gwDel = $('#gwDel');
+    if (gwDel) gwDel.onclick = async () => { if (await confirmBox('Quitar Google Wallet', 'Los clientes ya no verán el botón de Google Wallet. Las tarjetas ya guardadas dejarán de actualizarse.', 'Quitar')) { await api.del('/gwallet/key'); toast('Google Wallet desactivado'); Views.settings(); } };
     const fileB64 = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
     $('#wSave').onclick = async () => {
       try {

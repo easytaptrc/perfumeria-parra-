@@ -8,30 +8,15 @@ body { min-height: 100dvh; background:
 .store img { height: 44px; mix-blend-mode: lighten; }
 [data-tone="light"] .store img { mix-blend-mode: darken; }
 
-/* Tarjeta */
-.lcard { position: relative; border-radius: 22px; padding: 20px; overflow: hidden; color: #efe8da;
-  background: radial-gradient(130% 120% at 100% 0%, color-mix(in srgb, var(--gold) 38%, #15120c), #0b0a08 62%);
-  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
-  box-shadow: 0 14px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.1); }
-.lcard::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.08) 45%, transparent 55%); }
-.lc-top { display: flex; align-items: center; gap: 12px; }
-.lc-top img { width: 44px; height: 44px; border-radius: 50%; mix-blend-mode: lighten; }
-.lc-top .prog { flex: 1; line-height: 1.2; }
-.lc-top .prog b { display: block; font-family: var(--serif); font-weight: 500; font-size: 20px; }
-.lc-top .tier { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--gold); color: var(--gold); }
-.lc-balance { margin: 22px 0 6px; }
-.lc-balance .lbl { font-size: 10px; letter-spacing: .24em; text-transform: uppercase; color: var(--gold); }
-.lc-balance .amt { font-size: 46px; font-weight: 600; line-height: 1.05; letter-spacing: -.02em; }
-.lc-stamps { margin: 18px -6px 4px; }
-.lc-stamps svg { width: 100%; height: auto; display: block; }
-.lc-next { font-size: 13px; color: #cfc6b4; margin-top: 4px; }
-.lc-next b { color: var(--gold); font-weight: 600; }
-.lc-name { display: flex; justify-content: space-between; margin-top: 18px; font-size: 13px; }
-.lc-name span:first-child { font-family: var(--serif); font-size: 17px; }
+/* La tarjeta (.lcard) está en card.css */
+.lcard .lc-next { color: inherit; }
 
 /* Código para caja */
 .qr-box { background: #fff; color: #111; border-radius: 18px; padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
 .qr-box svg { width: 210px; height: 210px; }
+.qr-box svg[viewBox*="0 0"]:not([width="210"]) { height: auto; max-width: 100%; }
+.gwallet-btn { display: flex; align-items: center; justify-content: center; gap: 10px; height: 52px; border-radius: 26px; background: #1f1f1f; color: #fff; text-decoration: none; border: 1px solid #444; font-size: 15px; font-weight: 500; font-family: 'Google Sans', Roboto, var(--sans); }
+.gwallet-btn svg { width: 24px; height: 24px; }
 .qr-box .code { font-family: 'Courier New', monospace; font-weight: 700; letter-spacing: .12em; font-size: 15px; }
 .qr-box small { color: #666; }
 
@@ -54,3 +39,12 @@ body { min-height: 100dvh; background:
 .updated { font-size: 11px; color: var(--muted); text-align: center; }
 .pulse { animation: pulse 1.2s ease; }
 @keyframes pulse { 30% { transform: scale(1.03); box-shadow: 0 0 0 6px color-mix(in srgb, var(--gold) 30%, transparent), 0 14px 30px rgba(0,0,0,.4); } }
+
+/* Registro al club (/club) */
+.club-join { background: var(--surface); border: 1px solid var(--line-soft); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.club-join h1 { font-weight: 500; font-size: 26px; margin: 0; }
+.club-join p { margin: 0; }
+.club-join .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.club-join .full { grid-column: 1 / -1; }
+.club-join .err { color: var(--bad); font-size: 14px; margin: 0; }
+@media (max-width: 420px) { .club-join .form-grid { grid-template-columns: 1fr; } }

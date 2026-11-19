@@ -15,10 +15,25 @@
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}">${ic.svg(fg, bg)}</svg>`;
   }
 
-  // Tarjeta de sellos: círculos llenos (ganados) y vacíos (pendientes)
-  function grid(count, goal, name, opts = {}) {
+  // Emojis sugeridos para la tarjeta (el administrador también puede escribir cualquier otro)
+  const EMOJIS = ['🌸', '🌹', '🌺', '🌷', '💐', '🪷', '💎', '👑', '⭐', '✨', '💖', '💜', '🖤', '🤍', '💧', '🔥', '🍒', '🍓', '🍋', '🥥', '🍫', '☕', '🦋', '🎀'];
+  const xmlEsc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+
+  // Normaliza la configuración del sello: { name: 'bottle' | 'emoji' | 'image', emoji, image }
+  function spec(stamps) {
+    const st = stamps || {};
+    if (st.icon === 'emoji' && st.emoji) return { name: 'emoji', emoji: st.emoji, image: st.iconImage || '' };
+    if (st.icon === 'image' && st.iconImage) return { name: 'image', image: st.iconImage };
+    return { name: ICONS[st.icon] ? st.icon : 'bottle' };
+  }
+
+  // Tarjeta de sellos: círculos llenos (ganados) y vacíos (pendientes).
+  // `icon` puede ser el nombre de un ícono o un objeto de spec(). En el servidor se pasa
+  // opts.imageHref (PNG en data URI) porque allí los emojis no se dibujan a color.
+  function grid(count, goal, icon, opts = {}) {
     const gold = opts.gold || '#c9a75e', bg = opts.bg || '#0b0b0b';
     const W = opts.width || 375, H = opts.height || 123;
+    const sp = typeof icon === 'object' && icon ? icon : { name: icon };
     goal = Math.max(1, Math.min(20, goal | 0));
     count = Math.max(0, count | 0);
     const rows = goal <= 6 ? 1 : 2;
@@ -26,22 +41,37 @@
     const cell = Math.min((W - 24) / cols, (H - 16) / rows);
     const r = cell * 0.40;
     const offX = (W - cols * cell) / 2, offY = (H - rows * cell) / 2;
-    const ic = ICONS[name] || ICONS.bottle;
+    const ic = ICONS[sp.name] || ICONS.bottle;
+    const href = opts.imageHref || ((sp.name === 'image' || (sp.name === 'emoji' && opts.preferImage)) && sp.image) || '';
     let out = '';
     for (let i = 0; i < goal; i++) {
       const row = Math.floor(i / cols), col = i % cols;
       const cx = offX + col * cell + cell / 2, cy = offY + row * cell + cell / 2;
       const on = i < count;
-      const s = r * 1.15 / 12; // escala del ícono 24px
       const last = i === goal - 1;
       out += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${on ? gold : 'none'}" stroke="${gold}" stroke-width="${on ? 0 : 1.4}" stroke-opacity="${on ? 1 : 0.55}" ${!on && last ? `stroke-dasharray="3 3"` : ''}/>`;
-      out += `<g transform="translate(${cx - 12 * s} ${cy - 12 * s}) scale(${s})" opacity="${on ? 1 : 0.28}">${ic.svg(on ? bg : gold, on ? gold : bg)}</g>`;
+      if (href) {
+        const sz = r * 1.3;
+        out += `<image href="${xmlEsc(href)}" x="${cx - sz / 2}" y="${cy - sz / 2}" width="${sz}" height="${sz}" opacity="${on ? 1 : 0.3}" preserveAspectRatio="xMidYMid meet"/>`;
+      } else if (sp.name === 'emoji' && sp.emoji) {
+        out += `<text x="${cx}" y="${cy}" font-size="${r * 1.15}" text-anchor="middle" dominant-baseline="central" opacity="${on ? 1 : 0.3}" font-family="'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif">${xmlEsc(sp.emoji)}</text>`;
+      } else {
+        const s = r * 1.15 / 12; // escala del ícono 24px
+        out += `<g transform="translate(${cx - 12 * s} ${cy - 12 * s}) scale(${s})" opacity="${on ? 1 : 0.28}">${ic.svg(on ? bg : gold, on ? gold : bg)}</g>`;
+      }
     }
     const bgRect = opts.transparent ? '' : `<rect width="${W}" height="${H}" fill="${bg}"/>`;
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${bgRect}${out}</svg>`;
   }
 
-  const api = { ICONS, icon, grid };
+  // Muestra del sello (para selectores y vistas previas)
+  function sample(sp, fg, bg, size = 24) {
+    if (sp.name === 'emoji') return `<span style="font-size:${size * 0.9}px;line-height:1">${xmlEsc(sp.emoji)}</span>`;
+    if (sp.name === 'image') return `<img src="${xmlEsc(sp.image)}" alt="" style="width:${size}px;height:${size}px;object-fit:contain">`;
+    return icon(sp.name, fg, bg, size);
+  }
+
+  const api = { ICONS, EMOJIS, icon, grid, spec, sample };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Stamps = api;
 })(typeof window !== 'undefined' ? window : globalThis);

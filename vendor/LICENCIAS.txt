@@ -1,0 +1,5 @@
+Librerías de terceros incluidas en esta carpeta:
+
+- html5-qrcode.min.js   · html5-qrcode 2.3.8 · (c) Minhaz · Apache License 2.0 · https://github.com/mebjas/html5-qrcode
+- JsBarcode.all.min.js  · JsBarcode 3.12.3 · (c) Johan Lindell · MIT · https://github.com/lindell/JsBarcode
+- qrcode.js             · qrcode-generator 2.0.4 · (c) Kazuhiko Arase · MIT · https://github.com/kazuhikoarase/qrcode-generator

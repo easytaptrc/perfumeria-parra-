@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
+  <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Mi tarjeta · Parra Perfumería</title>
   <meta name="theme-color" content="#0b0b0b">
@@ -9,19 +10,22 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Club Parra">
   <meta name="robots" content="noindex">
-  <link rel="apple-touch-icon" href="/assets/logo-icon.jpg">
-  <link rel="icon" href="/assets/logo-icon.jpg">
+  <link rel="apple-touch-icon" href="assets/logo-icon.jpg">
+  <link rel="icon" href="assets/logo-icon.jpg">
   <link rel="manifest" id="manifest">
-  <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/tarjeta.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/card.css">
+  <link rel="stylesheet" href="css/tarjeta.css">
 </head>
 <body>
   <main class="wrap" id="app">
     <p class="muted loading">Cargando tu tarjeta…</p>
   </main>
-  <script src="/vendor/qrcode.js"></script>
-  <script src="/js/api.js"></script>
-  <script src="/js/stamps.js"></script>
-  <script src="/js/tarjeta.js"></script>
+  <script src="vendor/qrcode.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/stamps.js"></script>
+  <script src="vendor/JsBarcode.all.min.js"></script>
+  <script src="js/card.js"></script>
+  <script src="js/tarjeta.js"></script>
 </body>
 </html>

@@ -13,7 +13,7 @@
     const headers = { 'Content-Type': 'application/json' };
     const t = store.get(TOKEN_KEY);
     if (t) headers.Authorization = 'Bearer ' + t;
-    const res = await fetch('/api' + url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await fetch('api' + url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     let data = null;
     try { data = await res.json(); } catch {}
     if (res.status === 401 && url !== '/login') { store.del(TOKEN_KEY); window.dispatchEvent(new Event('parra:logout')); }
@@ -35,6 +35,10 @@
     },
     async me() { const u = await request('GET', '/me'); store.set(USER_KEY, JSON.stringify(u)); return u; },
     async logout() { try { await request('POST', '/logout'); } catch {} store.del(TOKEN_KEY); store.del(USER_KEY); },
+    // ¿Hay servidor de la tienda? (en GitHub Pages solo existe el catálogo)
+    async online() {
+      try { const r = await fetch('api/sections', { cache: 'no-store' }); return r.ok && Array.isArray(await r.json()); } catch { return false; }
+    },
     can(sec) { const u = api.user; return !!u && (u.role === 'admin' || (u.sections || []).includes(sec)); },
     // Redimensiona en el navegador y sube al servidor
     async uploadImage(file, maxSize = 1200) {
@@ -109,7 +113,7 @@
   // Foto del producto. PNG (frasco recortado, sin fondo) se muestra completo;
   // JPG/WEBP (foto con fondo) llena el espacio. Sin foto: el logo de la tienda.
   const isCutout = url => /\.png(\?|$)/i.test(url || '');
-  let logoFallback = "/assets/logo-icon.jpg";
+  let logoFallback = "assets/logo-icon.jpg";
   function media(p, { lazy = true } = {}) {
     if (!p || !p.image) return `<img class="pm pm-empty" src="${esc(logoFallback)}" alt="" ${lazy ? 'loading="lazy"' : ""}>`;
     // Si la foto no carga, se cambia por el logo de la tienda
@@ -133,5 +137,10 @@
 
   window.api = api;
   window.fmt = fmt;
-  window.ui = { applyTheme, toast, esc, media, isCutout, setLogoFallback, qrSvg };
+  // Aviso para el admin y el punto de venta cuando se abren sin el servidor (por ejemplo, en GitHub Pages)
+  function offlineNotice(what) {
+    document.body.innerHTML = `<section class="login"><div class="login-card" style="text-align:center"><img src="assets/logo-vertical.jpg" alt="Parra Perfumería" class="login-logo"><p class="eyebrow">${what}</p><p class="muted">Esta sección funciona con el servidor de la tienda: abre <b>Iniciar-Parra.bat</b> en la computadora de la tienda y entra desde ahí. En esta página solo se publica el catálogo.</p><a class="btn primary" href="./">Ver catálogo</a></div></section>`;
+  }
+
+  window.ui = { applyTheme, toast, esc, media, isCutout, setLogoFallback, qrSvg, offlineNotice };
 })();

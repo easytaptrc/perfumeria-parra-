@@ -5,31 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Parra · Administración</title>
   <meta name="theme-color" content="#0b0b0b">
-  <link rel="icon" href="/assets/logo-icon.jpg">
-  <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/app.css">
+  <link rel="icon" href="assets/logo-icon.jpg">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/card.css">
 </head>
 <body>
   <!-- Login -->
   <section class="login hidden" id="login">
     <form class="login-card" id="loginForm">
-      <img src="/assets/logo-vertical.jpg" alt="Parra Perfumería" class="login-logo">
+      <img src="assets/logo-vertical.jpg" alt="Parra Perfumería" class="login-logo">
       <p class="eyebrow" style="text-align:center">Acceso al sistema</p>
       <label class="field"><span>Usuario</span><input class="input" name="username" autocomplete="username" required autofocus></label>
       <label class="field"><span>Contraseña</span><input class="input" name="password" type="password" autocomplete="current-password" required></label>
       <p class="login-err hidden" id="loginErr"></p>
       <button class="btn primary block">Entrar</button>
-      <a class="muted small" href="/" style="text-align:center">← Ver catálogo</a>
+      <a class="muted small" href="./" style="text-align:center">← Ver catálogo</a>
     </form>
   </section>
 
   <!-- App -->
   <div class="shell hidden" id="shell">
     <aside class="side" id="side">
-      <div class="side-logo"><img src="/assets/logo-horizontal.jpg" alt="Parra"></div>
+      <div class="side-logo"><img src="assets/logo-horizontal.jpg" alt="Parra"></div>
       <nav id="nav"></nav>
       <div class="side-foot">
-        <a class="btn sm block" href="/" target="_blank">Ver catálogo ↗</a>
+        <a class="btn sm block" href="./" target="_blank">Ver catálogo ↗</a>
       </div>
     </aside>
     <div class="main">
@@ -45,13 +46,15 @@
     </div>
   </div>
 
-  <script src="/vendor/html5-qrcode.min.js"></script>
-  <script src="/vendor/JsBarcode.all.min.js"></script>
-  <script src="/js/api.js"></script>
-  <script src="/js/scanner.js"></script>
-  <script src="/js/ticket.js"></script>
-  <script src="/vendor/qrcode.js"></script>
-  <script src="/js/stamps.js"></script>
-  <script src="/js/admin.js"></script>
+  <script src="vendor/html5-qrcode.min.js"></script>
+  <script src="vendor/JsBarcode.all.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/scanner.js"></script>
+  <script src="js/ticket.js"></script>
+  <script src="vendor/qrcode.js"></script>
+  <script src="js/stamps.js"></script>
+  <script src="js/card.js"></script>
+  <script src="js/cash.js"></script>
+  <script src="js/admin.js"></script>
 </body>
 </html>
